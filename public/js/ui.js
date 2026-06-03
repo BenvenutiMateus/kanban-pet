@@ -5,12 +5,14 @@
 // interações de board, modal, admin, etc.
 // Pode ser dividido em submódulos no futuro se necessário.
 
-import { STATE, _currentView, _activeBoardId, _searchQ, _calMonth, _calYear, currentUser, setLocalNav, _lastBoardHash, _modalCardId, setLastBoardHash, setSearchQ, setCalMonth, setCalYear, setModalCardId, get_lastBoardHash, get_searchQ, get_calMonth, get_calYear, get_modalCardId, get_drag } from './state.js';
-import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
+import { STATE, _currentView, _activeBoardId, currentUser,
+  setLocalNav, setLastBoardHash, setSearchQ,
+  setCalMonth, setCalYear, setModalCardId,
+  get_lastBoardHash, get_searchQ, get_calMonth, get_calYear,
+  get_modalCardId, get_drag, get_pendingRender, setPendingRender } from './state.js';import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
 import { uid, esc, initials, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
-import { saveBoard, saveMeta, saveUser } from './firestore.js';
-import { db, auth } from './main.js';
+import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting } from './firestore.js';import { db, auth } from './main.js';
 import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -135,8 +137,10 @@ function sbBoardItem(b) {
 }
 
 function renderBoard() {
-  if (isBoardBusy()) return;
-
+  if (isBoardBusy()) {
+    setPendingRender(true);
+    return;
+  }
   const wrap = document.getElementById('board-wrap');
   const empty = document.getElementById('empty-state');
   const meta = document.getElementById('board-meta');
@@ -249,21 +253,21 @@ function renderBoard() {
     container.addEventListener('dragover', e => { e.preventDefault(); container.classList.add('drag-over'); });
     container.addEventListener('dragleave', e => { if (!container.contains(e.relatedTarget)) container.classList.remove('drag-over'); });
     container.addEventListener('drop', async e => {
-      e.preventDefault();
-      container.classList.remove('drag-over');
-      const { _drag } = await import('./state.js');
-      if (!_drag.cardId) return;
-      const bd = activeBoard();
-      if (!bd) return;
-      const fromCol = bd.columns.find(c => c.id === _drag.colId);
-      const toCol = bd.columns.find(c => c.id === col.id);
-      if (!fromCol || !toCol) return;
-      const idx = fromCol.cards.findIndex(c => c.id === _drag.cardId);
-      if (idx === -1) return;
-      const [moved] = fromCol.cards.splice(idx, 1);
-      toCol.cards.push(moved);
-      await saveBoard(bd.id);
-    });
+  e.preventDefault();
+  container.classList.remove('drag-over');
+  const drag = get_drag();
+  if (!drag.cardId) return;
+  const bd = activeBoard();
+  if (!bd) return;
+  const fromCol = bd.columns.find(c => c.id === drag.colId);
+  const toCol = bd.columns.find(c => c.id === col.id);
+  if (!fromCol || !toCol) return;
+  const idx = fromCol.cards.findIndex(c => c.id === drag.cardId);
+  if (idx === -1) return;
+  const [moved] = fromCol.cards.splice(idx, 1);
+  toCol.cards.push(moved);
+  await saveBoard(bd.id);
+});
     colEl.appendChild(container);
 
     const form = document.createElement('div');
@@ -330,18 +334,19 @@ function buildCard(card, colId) {
   el.dataset.id = card.id;
   el.draggable = true;
 
-  el.addEventListener('dragstart', async () => {
-    const state = await import('./state.js');
-    state._drag.cardId = card.id;
-    state._drag.colId = colId;
-    el.classList.add('dragging');
-  });
-  el.addEventListener('dragend', async () => {
-    const state = await import('./state.js');
-    el.classList.remove('dragging');
-    state._drag.cardId = null;
-    state._drag.colId = null;
-  });
+  el.addEventListener('dragstart', () => {
+  const drag = get_drag();
+  drag.cardId = card.id;
+  drag.colId = colId;
+  el.classList.add('dragging');
+});
+
+el.addEventListener('dragend', () => {
+  const drag = get_drag();
+  el.classList.remove('dragging');
+  drag.cardId = null;
+  drag.colId = null;
+});
   el.addEventListener('click', e => { if (!e.target.closest('.card-done-btn')) openModal(card.id); });
 
   const total = card.checklist.length, doneC = card.checklist.filter(x => x.done).length;
@@ -397,15 +402,18 @@ function renderCalendar() {
     (b.columns || []).forEach(col => {
       (col.cards || []).forEach(card => {
         if ((card.assignees || []).includes(currentUser.uid) && card.due)
-          myTasks.push({ ...card, boardName: b.name, colName: col.title });
+          myTasks.push({ ...card, boardName: b.name, colName: col.title, type: 'task' });
       });
     });
   });
 
+  // Reuniões: visíveis para todos
+  const meetings = Object.values(STATE.meetings || {});
+
   const firstDay = new Date(get_calYear(), get_calMonth(), 1).getDay();
   const daysInMonth = new Date(get_calYear(), get_calMonth() + 1, 0).getDate();
   const prevMonthDays = new Date(get_calYear(), get_calMonth(), 0).getDate();
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
   let html = `
     <div class="cal-header">
@@ -414,6 +422,7 @@ function renderCalendar() {
         <button id="cal-prev">‹ Anterior</button>
         <button id="cal-today">Hoje</button>
         <button id="cal-next">Próximo ›</button>
+        ${isAdmin() ? '<button id="cal-new-meeting" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:6px 14px;cursor:pointer;font-weight:600;">+ Reunião</button>' : ''}
       </div>
     </div>
     <div class="cal-grid">
@@ -422,8 +431,7 @@ function renderCalendar() {
   `;
 
   const todayStr = today();
-  let dayCount = 1;
-  let nextMonthDay = 1;
+  let dayCount = 1, nextMonthDay = 1;
 
   for (let i = 0; i < 42; i++) {
     let cellClass = 'cal-cell', dNum = '', fullDateStr = '';
@@ -432,15 +440,29 @@ function renderCalendar() {
       dNum = prevMonthDays - firstDay + i + 1;
     } else if (dayCount <= daysInMonth) {
       dNum = dayCount;
-      fullDateStr = `${get_calYear()}-${String(get_calMonth() + 1).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+      fullDateStr = `${get_calYear()}-${String(get_calMonth()+1).padStart(2,'0')}-${String(dNum).padStart(2,'0')}`;
       if (fullDateStr === todayStr) cellClass += ' today';
       dayCount++;
     } else {
       cellClass += ' other-month';
       dNum = nextMonthDay++;
     }
+
     html += `<div class="${cellClass}"><div class="cal-date">${dNum}</div>`;
+
     if (fullDateStr) {
+      // Reuniões do dia
+      meetings
+        .filter(m => m.date === fullDateStr)
+        .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+        .forEach(m => {
+          html += `<div class="cal-meeting" data-meeting-id="${m.id}" title="${esc(m.title)}&#10;${m.time ? m.time + ' — ' : ''}${esc(m.location || '')}">
+            🗓 <strong>${m.time || ''}</strong> ${esc(m.title)}
+            ${m.location ? `<span class="cal-meeting-loc">📍${esc(m.location)}</span>` : ''}
+          </div>`;
+        });
+
+      // Tarefas do dia
       myTasks.filter(t => t.due === fullDateStr).forEach(t => {
         html += `<div class="cal-task ${t.done ? 'done' : ''}" data-cal-card="${t.id}" title="${esc(t.title)} (${esc(t.boardName)})">
           <span style="color:var(--accent)">•</span> ${esc(t.title)}
@@ -452,10 +474,31 @@ function renderCalendar() {
   html += `</div>`;
   wrap.innerHTML = html;
 
-  document.getElementById('cal-prev').onclick = () => { setCalMonth(get_calMonth() - 1); if (get_calMonth() < 0) { setCalMonth(11); setCalYear(get_calYear() - 1); } renderCalendar(); };
-  document.getElementById('cal-next').onclick = () => { setCalMonth(get_calMonth() + 1); if (get_calMonth() > 11) { setCalMonth(0); setCalYear(get_calYear() + 1); } renderCalendar(); };
-  document.getElementById('cal-today').onclick = () => { const d = new Date(); setCalMonth(d.getMonth()); setCalYear(d.getFullYear()); renderCalendar(); };
+  // Navegação
+  document.getElementById('cal-prev').onclick = () => {
+    setCalMonth(get_calMonth() - 1);
+    if (get_calMonth() < 0) { setCalMonth(11); setCalYear(get_calYear() - 1); }
+    renderCalendar();
+  };
+  document.getElementById('cal-next').onclick = () => {
+    setCalMonth(get_calMonth() + 1);
+    if (get_calMonth() > 11) { setCalMonth(0); setCalYear(get_calYear() + 1); }
+    renderCalendar();
+  };
+  document.getElementById('cal-today').onclick = () => {
+    const d = new Date(); setCalMonth(d.getMonth()); setCalYear(d.getFullYear());
+    renderCalendar();
+  };
 
+  // Botão nova reunião (só admin/tutor)
+document.getElementById('cal-new-meeting')?.addEventListener('click', () => openMeetingDialog());
+
+  // Click em reunião
+  wrap.querySelectorAll('[data-meeting-id]').forEach(el => {
+    el.onclick = () => openMeetingDialog(STATE.meetings[el.dataset.meetingId]);
+  });
+
+  // Click em tarefa
   wrap.querySelectorAll('[data-cal-card]').forEach(el => {
     el.onclick = () => {
       const cardId = el.dataset.calCard;
@@ -473,7 +516,60 @@ function renderCalendar() {
   });
 }
 
+function openMeetingDialog(meeting = null) {
+  const editing = !!meeting;
+  const adm = isAdmin();
+
+  const overlay = document.getElementById('meeting-overlay'); 
+  const dlg = document.getElementById('meeting-dialog');     
+
+  dlg.innerHTML = `
+    <h3>${editing ? '🗓 Reunião' : 'Nova Reunião'}</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
+      <input id="mtg-title" type="text" placeholder="Título" value="${esc(meeting?.title || '')}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-date"  type="date" value="${meeting?.date || ''}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-time"  type="time" value="${meeting?.time || ''}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <textarea id="mtg-desc" placeholder="Descrição (opcional)" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
+    </div>
+    <div class="dlg-actions" style="display:flex;gap:8px;justify-content:flex-end">
+      ${editing && adm ? '<button class="btn-danger" id="mtg-del">🗑 Excluir</button>' : ''}
+      <button class="dlg-cancel" id="mtg-cancel">Fechar</button>
+      ${adm ? '<button class="dlg-ok" id="mtg-save">Salvar</button>' : ''}
+    </div>
+  `;
+
+  overlay.classList.add('open');
+
+  document.getElementById('mtg-cancel').onclick = () => overlay.classList.remove('open');
+  overlay.onclick = e => { if (e.target === overlay) overlay.classList.remove('open'); };
+
+document.getElementById('mtg-del')?.addEventListener('click', async () => {
+  await deleteMeeting(meeting.id);
+  overlay.classList.remove('open');
+  toast('Reunião excluída');
+});
+
+document.getElementById('mtg-save')?.addEventListener('click', async () => {
+  const title = document.getElementById('mtg-title').value.trim();
+  const date  = document.getElementById('mtg-date').value;
+  if (!title || !date) { toast('Título e data são obrigatórios', 'error'); return; }
+  const m = {
+    id:        meeting?.id || uid(),
+    title,
+    date,
+    time:      document.getElementById('mtg-time').value,
+    location:  document.getElementById('mtg-location').value.trim(),
+    desc:      document.getElementById('mtg-desc').value.trim(),
+    createdBy: currentUser.uid,
+  };
+  await saveMeeting(m);
+  overlay.classList.remove('open');
+  toast(editing ? 'Reunião atualizada' : 'Reunião criada', 'success');
+});
+}
 export function openModal(cardId) {
+    setModalCardId(cardId);
   const found = findCard(cardId);
   if (!found) return;
   const { card, col } = found;
@@ -559,11 +655,11 @@ function renderChecklist(card) {
     cb.type = 'checkbox';
     cb.checked = item.done;
     cb.onchange = async () => {
-      const f = findCard(_modalCardId);
-      if (!f) return;
-      f.card.checklist[i].done = cb.checked;
-      renderChecklist(f.card);
-      await saveBoard(activeBoard().id);
+    const f = findCard(get_modalCardId());
+    if (!f) return;
+    f.card.checklist[i].done = cb.checked;
+    renderChecklist(f.card);
+    await saveBoard(activeBoard().id);
     };
     const txt = document.createElement('input');
     txt.className = 'cl-item-text' + (item.done ? ' done' : '');
@@ -571,7 +667,7 @@ function renderChecklist(card) {
     txt.onblur = async () => {
       const v = txt.value.trim();
       if (!v) { txt.value = item.text; return; }
-      const f = findCard(_modalCardId);
+      const f = findCard(get_modalCardId());
       if (!f) return;
       f.card.checklist[i].text = v;
       await saveBoard(activeBoard().id);
@@ -581,7 +677,7 @@ function renderChecklist(card) {
     del.className = 'cl-del';
     del.textContent = '×';
     del.onclick = async () => {
-      const f = findCard(_modalCardId);
+      const f = findCard(get_modalCardId());
       if (!f) return;
       f.card.checklist.splice(i, 1);
       renderChecklist(f.card);
@@ -623,7 +719,7 @@ function renderComments(card) {
     `;
     div.prepend(avDiv);
     div.querySelector('.cm-del').onclick = async () => {
-      const f = findCard(_modalCardId);
+      const f = findCard(get_modalCardId());
       if (!f) return;
       f.card.comments.splice(i, 1);
       renderComments(f.card);
@@ -740,7 +836,7 @@ export function initUI() {
     const inp = document.getElementById('cl-new-input');
     const t = inp.value.trim();
     if (!t) return;
-    const f = findCard(_modalCardId);
+    const f = findCard(get_modalCardId());
     if (!f) return;
     f.card.checklist.push({ id: uid(), text: t, done: false });
     renderChecklist(f.card);
@@ -755,7 +851,7 @@ export function initUI() {
     const inp = document.getElementById('cm-input');
     const t = inp.value.trim();
     if (!t) return;
-    const f = findCard(_modalCardId);
+    const f = findCard(get_modalCardId());
     if (!f) return;
     if (!f.card.comments) f.card.comments = [];
     f.card.comments.push({ id: uid(), userId: currentUser.uid, text: t, ts: Date.now() });
@@ -774,7 +870,7 @@ export function initUI() {
       const bd = activeBoard();
       if (!bd) return;
       for (const c of bd.columns) {
-        const idx = c.cards.findIndex(k => k.id === _modalCardId);
+        const idx = c.cards.findIndex(k => k.id === get_modalCardId());
         if (idx !== -1) { c.cards.splice(idx, 1); break; }
       }
       await saveBoard(bd.id);
@@ -812,8 +908,13 @@ export function initUI() {
 }
 
 async function saveAndCloseModal() {
-  const found = findCard(_modalCardId);
-  if (!found) return;
+  const found = findCard(get_modalCardId());
+  if (!found) {
+    document.getElementById('modal-overlay').classList.remove('open');
+    setLastBoardHash('');
+    if (get_pendingRender()) { setPendingRender(false); renderAll(); }
+    return;
+  }
   const card = found.card;
   const t = document.getElementById('modal-title').value.trim();
   if (t) card.title = t;
@@ -824,6 +925,8 @@ async function saveAndCloseModal() {
   const bd = activeBoard();
   if (bd) await saveBoard(bd.id);
   document.getElementById('modal-overlay').classList.remove('open');
+  setLastBoardHash('');
+  if (get_pendingRender()) { setPendingRender(false); renderAll(); }
 }
 
 function openMembersPanel() {

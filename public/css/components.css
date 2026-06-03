@@ -509,3 +509,42 @@
   max-height: 150px;
   overflow-y: auto;
 }
+
+.cal-meeting {
+  font-size: 10px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  background: rgba(138, 21, 56, 0.12);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+  cursor: pointer;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.cal-meeting:hover { background: rgba(138, 21, 56, 0.22); }
+.cal-meeting-loc {
+  display: block;
+  font-size: 9px;
+  color: var(--text2);
+  margin-top: 1px;
+}
+
+#meeting-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+}
+#meeting-overlay.open { display: flex; }
+#meeting-dialog {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow);
+}

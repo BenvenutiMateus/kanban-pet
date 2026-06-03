@@ -52,9 +52,28 @@ export function startListeners() {
     snap.forEach(d => { STATE.boards[d.id] = { id: d.id, ...d.data() }; });
     snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.boards[ch.doc.id]; });
     renderAll();
+
   }));
+
+  // meetings — adiciona junto com os outros addUnsub
+    addUnsub(onSnapshot(collection(db, 'meetings'), snap => {
+  if (!STATE.meetings) STATE.meetings = {}; // ← guard por segurança
+  snap.forEach(d => { STATE.meetings[d.id] = { id: d.id, ...d.data() }; });
+  snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.meetings[ch.doc.id]; });
+  renderAll();
+}));
 }
 
 export function stopListeners() {
   clearUnsubs();
+}
+
+export async function saveMeeting(meeting) {
+  await setDoc(doc(db, 'meetings', meeting.id), meeting)
+    .catch(e => toast('Erro ao salvar reunião: ' + e.message, 'error'));
+}
+
+export async function deleteMeeting(id) {
+  await deleteDoc(doc(db, 'meetings', id))
+    .catch(e => toast('Erro ao excluir reunião: ' + e.message, 'error'));
 }

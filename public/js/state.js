@@ -6,6 +6,7 @@ export let STATE = {
   meta:   { groups: [] },
   users:  {},
   boards: {},
+  meetings: {},
 };
 
 export let currentUser = null;
@@ -25,9 +26,11 @@ const mutableVars = {
   _calYear: new Date().getFullYear(),
   _modalCardId: null,
   _drag: { cardId: null, colId: null },
+  _pendingRender: false,
 };
 
 // Getters
+export function get_pendingRender() { return mutableVars._pendingRender; }
 export function get_lastBoardHash() { return mutableVars._lastBoardHash; }
 export function get_searchQ() { return mutableVars._searchQ; }
 export function get_calMonth() { return mutableVars._calMonth; }
@@ -36,6 +39,7 @@ export function get_modalCardId() { return mutableVars._modalCardId; }
 export function get_drag() { return mutableVars._drag; }
 
 // Setters
+export function setPendingRender(v) { mutableVars._pendingRender = v; }
 export function setLastBoardHash(hash) { mutableVars._lastBoardHash = hash; }
 export function setSearchQ(q) { mutableVars._searchQ = q; }
 export function setCalMonth(m) { mutableVars._calMonth = m; }
