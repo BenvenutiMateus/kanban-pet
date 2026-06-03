@@ -276,7 +276,7 @@ console.log(boards);      // Boards carregados
 
 - **Issues**: Abra uma issue no GitHub
 - **Discussões**: Use as discussions do repositório
-- **Email**: tutor@pet-estatistica.ufscar.br
+- **Email**: pet-estatistica@ufscar.br
 
 ---
 

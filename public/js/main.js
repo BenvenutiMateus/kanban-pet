@@ -13,14 +13,36 @@ import { updateCurrentUser } from './state.js';
 import { startListeners, stopListeners, saveUser } from './firestore.js';
 import { showLogin, showApp, hideLoading, initAuth } from './auth.js';
 import { initUI } from './ui.js';
+import { initTheme, toggleTheme } from './theme.js';
 
 // Inicializar Firebase
 export const fbApp = initializeApp(FB_CONFIG);
 export const auth = getAuth(fbApp);
 export const db = getFirestore(fbApp);
 
+// Configurar toggle de tema
+function setupThemeToggle() {
+  const btn = document.getElementById('btn-theme-toggle');
+  if (!btn) return;
+  
+  const updateIcon = () => {
+    const theme = document.documentElement.getAttribute('data-theme');
+    btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  };
+  
+  updateIcon();
+  btn.addEventListener('click', () => {
+    toggleTheme();
+    updateIcon();
+  });
+}
+
 // Inicializar aplicação
 function initApp() {
+  // Theme
+  initTheme();
+  setupThemeToggle();
+  
   // Dialog
   initDialog();
 
