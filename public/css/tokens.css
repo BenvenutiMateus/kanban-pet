@@ -1,0 +1,90 @@
+/* ════════════════════════════════════════════════════════
+   DESIGN TOKENS
+════════════════════════════════════════════════════════ */
+:root {
+  /* ── Colors ── */
+  --pet-burgundy: #8a1538;
+  --bg:         #080506;
+  --surface:    #1a060c;
+  --surface2:   #2d0a15;
+  --surface3:   #4a1022;
+  --border:     rgba(138, 21, 56, .2);
+  --border2:    rgba(138, 21, 56, .4);
+  --accent:     var(--pet-burgundy);
+  --accent2:    #a31a42;
+  --green:      #34d399;
+  --red:        #f87171;
+  --yellow:     #fbbf24;
+  --purple:     #a78bfa;
+  --orange:     #fb923c;
+  --pink:       #f472b6;
+  --text:       #f9f0f2;
+  --text2:      #ccb8be;
+  --text3:      #886d75;
+  --shadow:     0 8px 32px rgba(0,0,0,.6);
+
+  /* ── Spacing & Sizing ── */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 18px;
+
+  /* ── Typography ── */
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+
+  /* ── Motion ── */
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+
+/* ════════════════════════════════════════════════════════
+   RESET
+════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: var(--font-body);
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface3);
+  border-radius: 2px;
+}
+
+::selection {
+  background: rgba(138,21,56,.3);
+}
