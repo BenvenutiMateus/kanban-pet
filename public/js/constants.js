@@ -1,16 +1,25 @@
 // ════════════════════════════════════════════════════════
 // CONSTANTES
 // ════════════════════════════════════════════════════════
-
 export const TAGS = [
   { id:'urgente',  label:'Urgente',  color:'#f87171', bg:'rgba(248,113,113,.15)' },
   { id:'moderado', label:'Moderado', color:'#60d8d8', bg:'rgba(96,216,216,.15)'  },
 ];
-
 export const AV_COLORS = ['#4f9cf9','#34d399','#a78bfa','#fb923c','#f472b6','#fbbf24','#f87171','#60d8d8'];
 export const GRP_COLORS = ['#4f9cf9','#34d399','#a78bfa','#fb923c','#f472b6','#fbbf24'];
 export const BOARD_COLORS = ['#4f9cf9','#34d399','#a78bfa','#fb923c','#f472b6','#fbbf24','#f87171','#60d8d8'];
 export const COL_ACCENT_COLORS = ['#4f9cf9','#34d399','#a78bfa','#fb923c','#f472b6'];
+
+// Cargos do sistema
+// isPET: pode ver/criar eventos do PET e acessar boards do PET
+// isAdmin: pode gerenciar usuários, aprovar cadastros, criar boards
+export const ROLES = {
+  tutor:       { label: 'Tutor',               isPET: true,  isAdmin: true  },
+  coordenador: { label: 'Coordenador de Pasta', isPET: true,  isAdmin: true  },
+  petiano:     { label: 'Petiano',              isPET: true,  isAdmin: false },
+  externo:     { label: 'Externo',              isPET: false, isAdmin: false },
+  pendente:    { label: 'Pendente',             isPET: false, isAdmin: false },
+};
 
 export const FB_CONFIG = {
   apiKey:            "AIzaSyBGQNhmiME4JlvWWjgRBbGsXOPfxGWJlpY",

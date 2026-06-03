@@ -1,29 +1,20 @@
 // ════════════════════════════════════════════════════════
 // UI.JS - RENDERIZAÇÃO E INTERAÇÃO DA UI
 // ════════════════════════════════════════════════════════
-// Este arquivo é grande por necessidade - consolida renderização,
-// interações de board, modal, admin, etc.
-// Pode ser dividido em submódulos no futuro se necessário.
 
 import { STATE, _currentView, _activeBoardId, currentUser,
   setLocalNav, setLastBoardHash, setSearchQ,
   setCalMonth, setCalYear, setModalCardId,
   get_lastBoardHash, get_searchQ, get_calMonth, get_calYear,
-  get_modalCardId, get_drag, get_pendingRender, setPendingRender } from './state.js';import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
+  get_modalCardId, get_drag, get_pendingRender, setPendingRender } from './state.js';
+import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
 import { uid, esc, initials, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
-import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting } from './firestore.js';import { db, auth } from './main.js';
+import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting } from './firestore.js';
+import { db, auth } from './main.js';
 import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-// Retorna true se editando
-function isBoardBusy() {
-  if (document.querySelector('.col-add-form.open')) return true;
-  if (document.getElementById('modal-overlay').classList.contains('open')) return true;
-  if (document.querySelector('.col-title:not([readonly])')) return true;
-  return false;
-}
 
 export function me() {
   return currentUser ? STATE.users[currentUser.uid] : null;
@@ -52,6 +43,8 @@ export function renderAll() {
   renderSidebar();
   renderBoard();
 }
+
+// ─── SIDEBAR ────────────────────────────────────────────
 
 function renderSidebar() {
   const u = me();
@@ -136,11 +129,32 @@ function sbBoardItem(b) {
   return el;
 }
 
+// ─── BOARD ──────────────────────────────────────────────
+
 function renderBoard() {
-  if (isBoardBusy()) {
+  // Form de adicionar aberto — agenda e sai
+  if (document.querySelector('.col-add-form.open')) {
     setPendingRender(true);
     return;
   }
+
+  // Modal aberto — atualiza conteúdo do modal em tempo real e agenda re-render
+  if (document.getElementById('modal-overlay').classList.contains('open')) {
+    const found = findCard(get_modalCardId());
+    if (found) {
+      renderChecklist(found.card);
+      renderComments(found.card);
+    }
+    setPendingRender(true);
+    return;
+  }
+
+  // Título de coluna sendo editado — agenda e sai
+  if (document.querySelector('.col-title:not([readonly])')) {
+    setPendingRender(true);
+    return;
+  }
+
   const wrap = document.getElementById('board-wrap');
   const empty = document.getElementById('empty-state');
   const meta = document.getElementById('board-meta');
@@ -176,10 +190,6 @@ function renderBoard() {
   search.style.display = '';
   document.getElementById('board-title-text').textContent = b.name;
 
-  const boardHash = JSON.stringify(b);
-  if (boardHash === get_lastBoardHash()) return;
-  setLastBoardHash(boardHash);
-
   const tba = document.getElementById('tb-members');
   tba.innerHTML = '';
   (b.memberIds || []).slice(0, 6).forEach(uid2 => {
@@ -195,6 +205,9 @@ function renderBoard() {
 
   const q = get_searchQ().toLowerCase();
   wrap.innerHTML = '';
+
+  // Timestamp de quando o board foi renderizado — usado para bloquear cliques propagados
+  const renderTs = performance.now();
 
   (b.columns || []).forEach((col, ci) => {
     const cards = q
@@ -248,26 +261,26 @@ function renderBoard() {
     const container = document.createElement('div');
     container.className = 'cards-container';
     container.dataset.colId = col.id;
-    cards.forEach(card => container.appendChild(buildCard(card, col.id)));
+    cards.forEach(card => container.appendChild(buildCard(card, col.id, renderTs)));
 
     container.addEventListener('dragover', e => { e.preventDefault(); container.classList.add('drag-over'); });
     container.addEventListener('dragleave', e => { if (!container.contains(e.relatedTarget)) container.classList.remove('drag-over'); });
     container.addEventListener('drop', async e => {
-  e.preventDefault();
-  container.classList.remove('drag-over');
-  const drag = get_drag();
-  if (!drag.cardId) return;
-  const bd = activeBoard();
-  if (!bd) return;
-  const fromCol = bd.columns.find(c => c.id === drag.colId);
-  const toCol = bd.columns.find(c => c.id === col.id);
-  if (!fromCol || !toCol) return;
-  const idx = fromCol.cards.findIndex(c => c.id === drag.cardId);
-  if (idx === -1) return;
-  const [moved] = fromCol.cards.splice(idx, 1);
-  toCol.cards.push(moved);
-  await saveBoard(bd.id);
-});
+      e.preventDefault();
+      container.classList.remove('drag-over');
+      const drag = get_drag();
+      if (!drag.cardId) return;
+      const bd = activeBoard();
+      if (!bd) return;
+      const fromCol = bd.columns.find(c => c.id === drag.colId);
+      const toCol = bd.columns.find(c => c.id === col.id);
+      if (!fromCol || !toCol) return;
+      const idx = fromCol.cards.findIndex(c => c.id === drag.cardId);
+      if (idx === -1) return;
+      const [moved] = fromCol.cards.splice(idx, 1);
+      toCol.cards.push(moved);
+      await saveBoard(bd.id);
+    });
     colEl.appendChild(container);
 
     const form = document.createElement('div');
@@ -287,7 +300,8 @@ function renderBoard() {
     actions.append(addOk, addNo);
     form.append(inp, actions);
 
-    addOk.onclick = async () => {
+    addOk.onclick = async (e) => {
+      e.stopPropagation();
       const t = inp.value.trim();
       if (!t) return;
       const bd = activeBoard();
@@ -295,9 +309,9 @@ function renderBoard() {
       const c2 = bd.columns.find(c => c.id === col.id);
       if (!c2) return;
       c2.cards.push({ id: uid(), title: t, desc: '', tags: [], due: '', checklist: [], comments: [], assignees: [], done: false, createdBy: currentUser.uid, createdAt: Date.now() });
-      await saveBoard(bd.id);
       form.classList.remove('open');
       inp.value = '';
+      await saveBoard(bd.id);
     };
     addNo.onclick = () => { form.classList.remove('open'); inp.value = ''; };
     inp.onkeydown = e => {
@@ -328,26 +342,35 @@ function renderBoard() {
   wrap.appendChild(addCol);
 }
 
-function buildCard(card, colId) {
+// ─── CARD ────────────────────────────────────────────────
+
+function buildCard(card, colId, renderTs) {
   const el = document.createElement('div');
   el.className = 'card' + (card.done ? ' done' : '');
   el.dataset.id = card.id;
   el.draggable = true;
 
   el.addEventListener('dragstart', () => {
-  const drag = get_drag();
-  drag.cardId = card.id;
-  drag.colId = colId;
-  el.classList.add('dragging');
-});
+    const drag = get_drag();
+    drag.cardId = card.id;
+    drag.colId = colId;
+    el.classList.add('dragging');
+  });
 
-el.addEventListener('dragend', () => {
-  const drag = get_drag();
-  el.classList.remove('dragging');
-  drag.cardId = null;
-  drag.colId = null;
-});
-  el.addEventListener('click', e => { if (!e.target.closest('.card-done-btn')) openModal(card.id); });
+  el.addEventListener('dragend', () => {
+    const drag = get_drag();
+    el.classList.remove('dragging');
+    drag.cardId = null;
+    drag.colId = null;
+  });
+
+  el.addEventListener('click', e => {
+    if (e.target.closest('.card-done-btn')) return;
+    // Bloqueia cliques que aconteceram antes do card ser criado no DOM
+    // (propagação de cliques do sidebar ou do botão Adicionar)
+    if (e.timeStamp < renderTs) return;
+    openModal(card.id);
+  });
 
   const total = card.checklist.length, doneC = card.checklist.filter(x => x.done).length;
   const late = card.due && card.due < today() && !card.done;
@@ -394,6 +417,8 @@ el.addEventListener('dragend', () => {
   return el;
 }
 
+// ─── CALENDAR ────────────────────────────────────────────
+
 function renderCalendar() {
   const wrap = document.getElementById('calendar-wrap');
   const myTasks = [];
@@ -407,8 +432,11 @@ function renderCalendar() {
     });
   });
 
-  // Reuniões: visíveis para todos
-  const meetings = Object.values(STATE.meetings || {});
+  const meetings = Object.values(STATE.meetings || {}).filter(m => {
+  if (m.petEvent) return isPET(); 
+  return (m.invitees || []).includes(currentUser.uid); 
+});
+
 
   const firstDay = new Date(get_calYear(), get_calMonth(), 1).getDay();
   const daysInMonth = new Date(get_calYear(), get_calMonth() + 1, 0).getDate();
@@ -451,7 +479,6 @@ function renderCalendar() {
     html += `<div class="${cellClass}"><div class="cal-date">${dNum}</div>`;
 
     if (fullDateStr) {
-      // Reuniões do dia
       meetings
         .filter(m => m.date === fullDateStr)
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
@@ -462,7 +489,6 @@ function renderCalendar() {
           </div>`;
         });
 
-      // Tarefas do dia
       myTasks.filter(t => t.due === fullDateStr).forEach(t => {
         html += `<div class="cal-task ${t.done ? 'done' : ''}" data-cal-card="${t.id}" title="${esc(t.title)} (${esc(t.boardName)})">
           <span style="color:var(--accent)">•</span> ${esc(t.title)}
@@ -474,7 +500,6 @@ function renderCalendar() {
   html += `</div>`;
   wrap.innerHTML = html;
 
-  // Navegação
   document.getElementById('cal-prev').onclick = () => {
     setCalMonth(get_calMonth() - 1);
     if (get_calMonth() < 0) { setCalMonth(11); setCalYear(get_calYear() - 1); }
@@ -490,15 +515,12 @@ function renderCalendar() {
     renderCalendar();
   };
 
-  // Botão nova reunião (só admin/tutor)
-document.getElementById('cal-new-meeting')?.addEventListener('click', () => openMeetingDialog());
+  document.getElementById('cal-new-meeting')?.addEventListener('click', () => openMeetingDialog());
 
-  // Click em reunião
   wrap.querySelectorAll('[data-meeting-id]').forEach(el => {
     el.onclick = () => openMeetingDialog(STATE.meetings[el.dataset.meetingId]);
   });
 
-  // Click em tarefa
   wrap.querySelectorAll('[data-cal-card]').forEach(el => {
     el.onclick = () => {
       const cardId = el.dataset.calCard;
@@ -516,12 +538,14 @@ document.getElementById('cal-new-meeting')?.addEventListener('click', () => open
   });
 }
 
+// ─── MEETING DIALOG ─────────────────────────────────────
+
 function openMeetingDialog(meeting = null) {
   const editing = !!meeting;
   const adm = isAdmin();
 
-  const overlay = document.getElementById('meeting-overlay'); 
-  const dlg = document.getElementById('meeting-dialog');     
+  const overlay = document.getElementById('meeting-overlay');
+  const dlg = document.getElementById('meeting-dialog');
 
   dlg.innerHTML = `
     <h3>${editing ? '🗓 Reunião' : 'Nova Reunião'}</h3>
@@ -544,16 +568,17 @@ function openMeetingDialog(meeting = null) {
   document.getElementById('mtg-cancel').onclick = () => overlay.classList.remove('open');
   overlay.onclick = e => { if (e.target === overlay) overlay.classList.remove('open'); };
 
-document.getElementById('mtg-del')?.addEventListener('click', async () => {
-  await deleteMeeting(meeting.id);
-  overlay.classList.remove('open');
-  toast('Reunião excluída');
-});
+  document.getElementById('mtg-del')?.addEventListener('click', async () => {
+    await deleteMeeting(meeting.id);
+    overlay.classList.remove('open');
+    toast('Reunião excluída');
+  });
 
-document.getElementById('mtg-save')?.addEventListener('click', async () => {
+  document.getElementById('mtg-save')?.addEventListener('click', async () => {
   const title = document.getElementById('mtg-title').value.trim();
   const date  = document.getElementById('mtg-date').value;
   if (!title || !date) { toast('Título e data são obrigatórios', 'error'); return; }
+ 
   const m = {
     id:        meeting?.id || uid(),
     title,
@@ -562,14 +587,21 @@ document.getElementById('mtg-save')?.addEventListener('click', async () => {
     location:  document.getElementById('mtg-location').value.trim(),
     desc:      document.getElementById('mtg-desc').value.trim(),
     createdBy: currentUser.uid,
+    // true = evento do PET (visível só para isPET), false = evento externo (visível só para convidados)
+    petEvent:  isPET(),
+    // Para eventos externos, lista de UIDs convidados (inclui o criador)
+    invitees:  meeting?.invitees || [currentUser.uid],
   };
   await saveMeeting(m);
   overlay.classList.remove('open');
-  toast(editing ? 'Reunião atualizada' : 'Reunião criada', 'success');
+  toast(editing ? 'Evento atualizado' : 'Evento criado', 'success');
 });
 }
+
+// ─── MODAL ───────────────────────────────────────────────
+
 export function openModal(cardId) {
-    setModalCardId(cardId);
+  setModalCardId(cardId);
   const found = findCard(cardId);
   if (!found) return;
   const { card, col } = found;
@@ -579,7 +611,6 @@ export function openModal(cardId) {
   document.getElementById('modal-desc').value = card.desc || '';
   document.getElementById('modal-due').value = card.due || '';
 
-  // Tags
   const te = document.getElementById('modal-tags');
   te.innerHTML = '';
   TAGS.forEach(t => {
@@ -593,7 +624,6 @@ export function openModal(cardId) {
     te.appendChild(btn);
   });
 
-  // Responsáveis
   const al = document.getElementById('modal-assignees');
   al.innerHTML = '';
   const currentBoard = activeBoard();
@@ -621,7 +651,6 @@ export function openModal(cardId) {
     });
   }
 
-  // Info
   const creator = STATE.users[card.createdBy];
   document.getElementById('modal-info').innerHTML = `
     <div class="m-side-row"><span class="label">Criado por</span><span class="value">${esc(creator?.name || '—')}</span></div>
@@ -655,11 +684,11 @@ function renderChecklist(card) {
     cb.type = 'checkbox';
     cb.checked = item.done;
     cb.onchange = async () => {
-    const f = findCard(get_modalCardId());
-    if (!f) return;
-    f.card.checklist[i].done = cb.checked;
-    renderChecklist(f.card);
-    await saveBoard(activeBoard().id);
+      const f = findCard(get_modalCardId());
+      if (!f) return;
+      f.card.checklist[i].done = cb.checked;
+      renderChecklist(f.card);
+      await saveBoard(activeBoard().id);
     };
     const txt = document.createElement('input');
     txt.className = 'cl-item-text' + (item.done ? ' done' : '');
@@ -729,189 +758,10 @@ function renderComments(card) {
   });
 }
 
-export function initUI() {
-  // Calendar btn
-  document.getElementById('btn-calendar').onclick = () => {
-    setLocalNav(null, 'calendar');
-    renderAll();
-  };
-
-  // Board actions
-  document.getElementById('btn-rename-board').onclick = () => {
-    const b = activeBoard();
-    if (!b) return;
-    dialog({ title: 'Renomear quadro', input: true, defaultVal: b.name, okLabel: 'Salvar' }, async name => {
-      if (!name) return;
-      b.name = name;
-      await saveBoard(b.id);
-    });
-  };
-
-  document.getElementById('btn-del-board').onclick = () => {
-    const b = activeBoard();
-    if (!b) return;
-    dialog({ title: 'Excluir quadro?', msg: `"${b.name}" será removido permanentemente.`, danger: true, okLabel: 'Excluir' }, async ok => {
-      if (!ok) return;
-      const groups = STATE.meta.groups || [];
-      groups.forEach(g => { g.boardIds = (g.boardIds || []).filter(id => id !== b.id); });
-      await deleteDoc(doc(db, 'boards', b.id));
-      setLocalNav(null, 'board');
-      await saveMeta({ groups });
-      renderAll();
-    });
-  };
-
-  document.getElementById('topbar-search').oninput = e => {
-    setSearchQ(e.target.value);
-    renderBoard();
-  };
-
-  // Sidebar collapse
-  document.getElementById('sb-collapse').onclick = () => {
-    const sb = document.getElementById('sidebar');
-    const btn = document.getElementById('sb-collapse');
-    sb.classList.toggle('collapsed');
-    const isCol = sb.classList.contains('collapsed');
-    btn.textContent = isCol ? '›' : '‹';
-    btn.title = isCol ? 'Expandir barra lateral' : 'Recolher barra lateral';
-  };
-
-  // New group
-  document.getElementById('btn-new-group').onclick = () => {
-    dialog({ title: 'Novo grupo', input: true, defaultVal: 'Novo Grupo', okLabel: 'Criar' }, async name => {
-      if (!name) return;
-      const groups = STATE.meta.groups || [];
-      const color = GRP_COLORS[groups.length % GRP_COLORS.length];
-      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [] });
-      await saveMeta({ groups });
-      toast('Grupo criado', 'success');
-    });
-  };
-
-  // New board
-  document.getElementById('btn-new-board').onclick = () => {
-    const groups = STATE.meta.groups || [];
-    const step2 = async (name, gid) => {
-      if (!name) return;
-      const color = BOARD_COLORS[Object.keys(STATE.boards).length % BOARD_COLORS.length];
-      const boardId = uid();
-      const board = {
-        id: boardId, name: name.trim(), color,
-        groupId: gid || null,
-        memberIds: [currentUser.uid],
-        columns: [
-          { id: uid(), title: 'A fazer', cards: [] },
-          { id: uid(), title: 'Em andamento', cards: [] },
-          { id: uid(), title: 'Concluído', cards: [] },
-        ]
-      };
-      await setDoc(doc(db, 'boards', boardId), board);
-      if (gid && gid !== '__none') {
-        const g = groups.find(x => x.id === gid);
-        if (g) {
-          g.boardIds = [...(g.boardIds || []), boardId];
-          await saveMeta({ groups });
-        }
-      }
-      setLocalNav(boardId, 'board');
-      renderAll();
-      toast('Quadro criado', 'success');
-    };
-
-    if (!groups.length) {
-      dialog({ title: 'Novo quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, null));
-      return;
-    }
-    const opts = [{ value: '__none', label: 'Sem grupo' }, ...groups.map(g => ({ value: g.id, label: g.name }))];
-    dialog({ title: 'Novo quadro — escolha o grupo', select: true, options: opts, okLabel: 'Próximo' }, gid => {
-      dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, gid));
-    });
-  };
-
-  // Modal
-  document.getElementById('modal-close').onclick = saveAndCloseModal;
-  document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
-
-  document.getElementById('cl-add-btn').onclick = async () => {
-    const inp = document.getElementById('cl-new-input');
-    const t = inp.value.trim();
-    if (!t) return;
-    const f = findCard(get_modalCardId());
-    if (!f) return;
-    f.card.checklist.push({ id: uid(), text: t, done: false });
-    renderChecklist(f.card);
-    await saveBoard(activeBoard().id);
-    inp.value = '';
-    inp.focus();
-  };
-
-  document.getElementById('cl-new-input').onkeydown = e => { if (e.key === 'Enter') document.getElementById('cl-add-btn').click(); };
-
-  document.getElementById('cm-send').onclick = async () => {
-    const inp = document.getElementById('cm-input');
-    const t = inp.value.trim();
-    if (!t) return;
-    const f = findCard(get_modalCardId());
-    if (!f) return;
-    if (!f.card.comments) f.card.comments = [];
-    f.card.comments.push({ id: uid(), userId: currentUser.uid, text: t, ts: Date.now() });
-    renderComments(f.card);
-    await saveBoard(activeBoard().id);
-    inp.value = '';
-  };
-
-  document.getElementById('cm-input').onkeydown = e => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) document.getElementById('cm-send').click();
-  };
-
-  document.getElementById('modal-del-card').onclick = () => {
-    dialog({ title: 'Excluir tarefa?', msg: 'Esta ação não pode ser desfeita.', danger: true, okLabel: 'Excluir' }, async ok => {
-      if (!ok) return;
-      const bd = activeBoard();
-      if (!bd) return;
-      for (const c of bd.columns) {
-        const idx = c.cards.findIndex(k => k.id === get_modalCardId());
-        if (idx !== -1) { c.cards.splice(idx, 1); break; }
-      }
-      await saveBoard(bd.id);
-      document.getElementById('modal-overlay').classList.remove('open');
-      toast('Tarefa excluída');
-    });
-  };
-
-  // Members
-  document.getElementById('btn-members-board').onclick = openMembersPanel;
-  document.getElementById('members-close').onclick = () => document.getElementById('members-overlay').classList.remove('open');
-  document.getElementById('members-overlay').onclick = e => {
-    if (e.target === document.getElementById('members-overlay')) document.getElementById('members-overlay').classList.remove('open');
-  };
-
-  document.getElementById('btn-save-members').onclick = async () => {
-    const b = activeBoard();
-    if (!b) return;
-    const checked = Array.from(document.querySelectorAll('#add-members-list input[type=checkbox]:checked'));
-    if (!checked.length) {
-      document.getElementById('members-overlay').classList.remove('open');
-      return;
-    }
-    const newIds = checked.map(cb => cb.dataset.uid);
-    b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
-    await saveBoard(b.id);
-    document.getElementById('members-overlay').classList.remove('open');
-    toast(`${newIds.length} membro(s) adicionado(s)`, 'success');
-  };
-
-  // Admin
-  document.getElementById('btn-admin').onclick = openAdmin;
-  document.getElementById('admin-close').onclick = () => document.getElementById('admin-overlay').classList.remove('open');
-  document.getElementById('btn-add-user').onclick = addUserAdmin;
-}
-
 async function saveAndCloseModal() {
   const found = findCard(get_modalCardId());
   if (!found) {
     document.getElementById('modal-overlay').classList.remove('open');
-    setLastBoardHash('');
     if (get_pendingRender()) { setPendingRender(false); renderAll(); }
     return;
   }
@@ -925,9 +775,10 @@ async function saveAndCloseModal() {
   const bd = activeBoard();
   if (bd) await saveBoard(bd.id);
   document.getElementById('modal-overlay').classList.remove('open');
-  setLastBoardHash('');
   if (get_pendingRender()) { setPendingRender(false); renderAll(); }
 }
+
+// ─── MEMBERS PANEL ───────────────────────────────────────
 
 function openMembersPanel() {
   const b = activeBoard();
@@ -992,6 +843,8 @@ function renderMembersPanel() {
   });
 }
 
+// ─── ADMIN ───────────────────────────────────────────────
+
 function openAdmin() {
   renderUserList();
   ['nu-name', 'nu-email', 'nu-pass'].forEach(id => document.getElementById(id).value = '');
@@ -1038,14 +891,8 @@ async function addUserAdmin() {
   const role = document.getElementById('nu-role').value;
   const err = document.getElementById('admin-err');
   const btn = document.getElementById('btn-add-user');
-  if (!name || !email || !pass) {
-    err.textContent = 'Preencha todos os campos.';
-    return;
-  }
-  if (pass.length < 6) {
-    err.textContent = 'A senha deve ter ao menos 6 caracteres.';
-    return;
-  }
+  if (!name || !email || !pass) { err.textContent = 'Preencha todos os campos.'; return; }
+  if (pass.length < 6) { err.textContent = 'A senha deve ter ao menos 6 caracteres.'; return; }
   err.textContent = '';
   btn.disabled = true;
   btn.textContent = 'Criando...';
@@ -1071,4 +918,178 @@ async function addUserAdmin() {
     btn.disabled = false;
     btn.textContent = 'Criar usuário';
   }
+}
+
+// ─── INIT UI ─────────────────────────────────────────────
+
+export function initUI() {
+  document.getElementById('btn-calendar').onclick = () => {
+    setLocalNav(null, 'calendar');
+    renderAll();
+  };
+
+  document.getElementById('btn-rename-board').onclick = () => {
+    const b = activeBoard();
+    if (!b) return;
+    dialog({ title: 'Renomear quadro', input: true, defaultVal: b.name, okLabel: 'Salvar' }, async name => {
+      if (!name) return;
+      b.name = name;
+      await saveBoard(b.id);
+    });
+  };
+
+  document.getElementById('btn-del-board').onclick = () => {
+    const b = activeBoard();
+    if (!b) return;
+    dialog({ title: 'Excluir quadro?', msg: `"${b.name}" será removido permanentemente.`, danger: true, okLabel: 'Excluir' }, async ok => {
+      if (!ok) return;
+      const groups = STATE.meta.groups || [];
+      groups.forEach(g => { g.boardIds = (g.boardIds || []).filter(id => id !== b.id); });
+      await deleteDoc(doc(db, 'boards', b.id));
+      setLocalNav(null, 'board');
+      await saveMeta({ groups });
+      renderAll();
+    });
+  };
+
+  document.getElementById('topbar-search').oninput = e => {
+    setSearchQ(e.target.value);
+    renderBoard();
+  };
+
+  document.getElementById('sb-collapse').onclick = () => {
+    const sb = document.getElementById('sidebar');
+    const btn = document.getElementById('sb-collapse');
+    sb.classList.toggle('collapsed');
+    const isCol = sb.classList.contains('collapsed');
+    btn.textContent = isCol ? '›' : '‹';
+    btn.title = isCol ? 'Expandir barra lateral' : 'Recolher barra lateral';
+  };
+
+  document.getElementById('btn-new-group').onclick = () => {
+    dialog({ title: 'Novo grupo', input: true, defaultVal: 'Novo Grupo', okLabel: 'Criar' }, async name => {
+      if (!name) return;
+      const groups = STATE.meta.groups || [];
+      const color = GRP_COLORS[groups.length % GRP_COLORS.length];
+      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [] });
+      await saveMeta({ groups });
+      toast('Grupo criado', 'success');
+    });
+  };
+
+  document.getElementById('btn-new-board').onclick = () => {
+    const groups = STATE.meta.groups || [];
+    const step2 = async (name, gid) => {
+      if (!name) return;
+      const color = BOARD_COLORS[Object.keys(STATE.boards).length % BOARD_COLORS.length];
+      const boardId = uid();
+      const board = {
+        id: boardId, name: name.trim(), color,
+        groupId: gid || null,
+        memberIds: [currentUser.uid],
+        columns: [
+          { id: uid(), title: 'A fazer', cards: [] },
+          { id: uid(), title: 'Em andamento', cards: [] },
+          { id: uid(), title: 'Concluído', cards: [] },
+        ]
+      };
+      await setDoc(doc(db, 'boards', boardId), board);
+      if (gid && gid !== '__none') {
+        const g = groups.find(x => x.id === gid);
+        if (g) {
+          g.boardIds = [...(g.boardIds || []), boardId];
+          await saveMeta({ groups });
+        }
+      }
+      setLocalNav(boardId, 'board');
+      renderAll();
+      toast('Quadro criado', 'success');
+    };
+
+    if (!groups.length) {
+      dialog({ title: 'Novo quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, null));
+      return;
+    }
+    const opts = [{ value: '__none', label: 'Sem grupo' }, ...groups.map(g => ({ value: g.id, label: g.name }))];
+    dialog({ title: 'Novo quadro — escolha o grupo', select: true, options: opts, okLabel: 'Próximo' }, gid => {
+      dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, gid));
+    });
+  };
+
+  document.getElementById('modal-close').onclick = saveAndCloseModal;
+  document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
+
+  document.getElementById('cl-add-btn').onclick = async () => {
+    const inp = document.getElementById('cl-new-input');
+    const t = inp.value.trim();
+    if (!t) return;
+    const f = findCard(get_modalCardId());
+    if (!f) return;
+    f.card.checklist.push({ id: uid(), text: t, done: false });
+    renderChecklist(f.card);
+    await saveBoard(activeBoard().id);
+    inp.value = '';
+    inp.focus();
+  };
+
+  document.getElementById('cl-new-input').onkeydown = e => { if (e.key === 'Enter') document.getElementById('cl-add-btn').click(); };
+
+  document.getElementById('cm-send').onclick = async () => {
+    const inp = document.getElementById('cm-input');
+    const t = inp.value.trim();
+    if (!t) return;
+    const f = findCard(get_modalCardId());
+    if (!f) return;
+    if (!f.card.comments) f.card.comments = [];
+    f.card.comments.push({ id: uid(), userId: currentUser.uid, text: t, ts: Date.now() });
+    renderComments(f.card);
+    await saveBoard(activeBoard().id);
+    inp.value = '';
+  };
+
+  document.getElementById('cm-input').onkeydown = e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) document.getElementById('cm-send').click();
+  };
+
+  document.getElementById('modal-del-card').onclick = () => {
+    dialog({ title: 'Excluir tarefa?', msg: 'Esta ação não pode ser desfeita.', danger: true, okLabel: 'Excluir' }, async ok => {
+      if (!ok) return;
+      const bd = activeBoard();
+      if (!bd) return;
+      for (const c of bd.columns) {
+        const idx = c.cards.findIndex(k => k.id === get_modalCardId());
+        if (idx !== -1) { c.cards.splice(idx, 1); break; }
+      }
+      await saveBoard(bd.id);
+      document.getElementById('modal-overlay').classList.remove('open');
+      if (get_pendingRender()) { setPendingRender(false); }
+      renderAll();
+      toast('Tarefa excluída');
+    });
+  };
+
+  document.getElementById('btn-members-board').onclick = openMembersPanel;
+  document.getElementById('members-close').onclick = () => document.getElementById('members-overlay').classList.remove('open');
+  document.getElementById('members-overlay').onclick = e => {
+    if (e.target === document.getElementById('members-overlay')) document.getElementById('members-overlay').classList.remove('open');
+  };
+
+  document.getElementById('btn-save-members').onclick = async () => {
+    const b = activeBoard();
+    if (!b) return;
+    const checked = Array.from(document.querySelectorAll('#add-members-list input[type=checkbox]:checked'));
+    if (!checked.length) {
+      document.getElementById('members-overlay').classList.remove('open');
+      return;
+    }
+    const newIds = checked.map(cb => cb.dataset.uid);
+    b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
+    await saveBoard(b.id);
+    document.getElementById('members-overlay').classList.remove('open');
+    toast(`${newIds.length} membro(s) adicionado(s)`, 'success');
+  };
+
+  document.getElementById('btn-admin').onclick = openAdmin;
+  document.getElementById('admin-close').onclick = () => document.getElementById('admin-overlay').classList.remove('open');
+  document.getElementById('btn-add-user').onclick = addUserAdmin;
 }

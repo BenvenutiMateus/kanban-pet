@@ -17,20 +17,23 @@
 
 <!-- LOADING -->
 <div id="loading-screen">
-  <div class="loading-logo">PE</div>
+  <div class="loading-logo">PET</div>
   <div class="loading-dots"><span></span><span></span><span></span></div>
 </div>
 
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
-    <div class="login-brand">
-      <div class="login-brand-icon">PE</div>
-      <div class="login-brand-text">
-        <strong>PET Estatística</strong>
-        <span>UFSCar — Gestão de Projetos</span>
-      </div>
+  <div class="login-brand">
+    <div class="login-brand-icon">PET</div>
+    <div class="login-brand-text">
+      <strong>PET Estatística</strong>
+      <span>UFSCar — Gestão de Projetos</span>
     </div>
+  </div>
+
+  <!-- FORM DE LOGIN -->
+  <div id="login-form">
     <h2>Entrar na plataforma</h2>
     <div class="field">
       <label>E-mail</label>
@@ -41,15 +44,44 @@
       <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
     </div>
     <div class="login-err" id="login-err"></div>
+    <div class="login-info" id="login-info" style="display:none"></div>
     <button class="btn-primary" id="btn-login">Entrar</button>
+    <button class="btn-link" id="btn-show-register"
+            style="margin-top:10px;background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;width:100%;text-align:center">
+      Não tem conta? Solicitar acesso
+    </button>
   </div>
+
+  <!-- FORM DE CADASTRO -->
+  <div id="register-form" style="display:none">
+    <h2>Solicitar acesso</h2>
+    <div class="field">
+      <label>Nome completo</label>
+      <input type="text" id="reg-name" placeholder="Seu nome">
+    </div>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="reg-email" placeholder="seu@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+    </div>
+    <div class="login-err" id="reg-err"></div>
+    <button class="btn-primary" id="btn-register">Cadastrar</button>
+    <button class="btn-link" id="btn-show-login"
+            style="margin-top:10px;background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;width:100%;text-align:center">
+      Já tem conta? Entrar
+    </button>
+  </div>
+</div>
 </div>
 
 <!-- APP -->
 <div id="app">
   <aside id="sidebar">
     <div class="sb-header">
-      <div class="sb-logo">PE</div>
+      <div class="sb-logo">PET</div>
       <span class="sb-title sb-label">PET Estatística</span>
       <button id="sb-collapse" title="Recolher/Expandir">‹</button>
     </div>

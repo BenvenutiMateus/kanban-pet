@@ -49,6 +49,7 @@ export function startListeners() {
 
   // boards
   addUnsub(onSnapshot(collection(db, 'boards'), snap => {
+    console.log('🔥 onSnapshot disparou', snap.docChanges().map(c => c.type));
     snap.forEach(d => { STATE.boards[d.id] = { id: d.id, ...d.data() }; });
     snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.boards[ch.doc.id]; });
     renderAll();

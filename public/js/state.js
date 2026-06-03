@@ -50,7 +50,6 @@ export function setModalCardId(id) { mutableVars._modalCardId = id; }
 export function setLocalNav(boardId, view = 'board') {
   _activeBoardId = boardId;
   _currentView = view;
-  mutableVars._lastBoardHash = '';
   if (boardId) localStorage.setItem('activeBoardId', boardId);
   else localStorage.removeItem('activeBoardId');
   localStorage.setItem('currentView', view);
