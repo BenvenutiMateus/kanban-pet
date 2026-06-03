@@ -5,13 +5,14 @@
 // interações de board, modal, admin, etc.
 // Pode ser dividido em submódulos no futuro se necessário.
 
-import { STATE, _currentView, _activeBoardId, _searchQ, _calMonth, _calYear, currentUser, setLocalNav, _lastBoardHash, _modalCardId } from './state.js';
-import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS } from './constants.js';
+import { STATE, _currentView, _activeBoardId, _searchQ, _calMonth, _calYear, currentUser, setLocalNav, _lastBoardHash, _modalCardId, setLastBoardHash, setSearchQ, setCalMonth, setCalYear, setModalCardId, get_lastBoardHash, get_searchQ, get_calMonth, get_calYear, get_modalCardId, get_drag } from './state.js';
+import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
 import { uid, esc, initials, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
 import { saveBoard, saveMeta, saveUser } from './firestore.js';
-import { db } from './main.js';
-import { doc, deleteDoc, setDoc, initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db, auth } from './main.js';
+import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // Retorna true se editando
@@ -172,8 +173,8 @@ function renderBoard() {
   document.getElementById('board-title-text').textContent = b.name;
 
   const boardHash = JSON.stringify(b);
-  if (boardHash === _lastBoardHash) return;
-  _lastBoardHash = boardHash;
+  if (boardHash === get_lastBoardHash()) return;
+  setLastBoardHash(boardHash);
 
   const tba = document.getElementById('tb-members');
   tba.innerHTML = '';
@@ -188,7 +189,7 @@ function renderBoard() {
     tba.appendChild(el);
   });
 
-  const q = _searchQ.toLowerCase();
+  const q = get_searchQ().toLowerCase();
   wrap.innerHTML = '';
 
   (b.columns || []).forEach((col, ci) => {
@@ -329,17 +330,17 @@ function buildCard(card, colId) {
   el.dataset.id = card.id;
   el.draggable = true;
 
-  el.addEventListener('dragstart', () => {
-    const { _drag } = require('./state.js');
-    _drag.cardId = card.id;
-    _drag.colId = colId;
+  el.addEventListener('dragstart', async () => {
+    const state = await import('./state.js');
+    state._drag.cardId = card.id;
+    state._drag.colId = colId;
     el.classList.add('dragging');
   });
-  el.addEventListener('dragend', () => {
-    const { _drag } = require('./state.js');
+  el.addEventListener('dragend', async () => {
+    const state = await import('./state.js');
     el.classList.remove('dragging');
-    _drag.cardId = null;
-    _drag.colId = null;
+    state._drag.cardId = null;
+    state._drag.colId = null;
   });
   el.addEventListener('click', e => { if (!e.target.closest('.card-done-btn')) openModal(card.id); });
 
@@ -401,14 +402,14 @@ function renderCalendar() {
     });
   });
 
-  const firstDay = new Date(_calYear, _calMonth, 1).getDay();
-  const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
-  const prevMonthDays = new Date(_calYear, _calMonth, 0).getDate();
+  const firstDay = new Date(get_calYear(), get_calMonth(), 1).getDay();
+  const daysInMonth = new Date(get_calYear(), get_calMonth() + 1, 0).getDate();
+  const prevMonthDays = new Date(get_calYear(), get_calMonth(), 0).getDate();
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   let html = `
     <div class="cal-header">
-      <h3>📅 Meu Calendário — ${monthNames[_calMonth]} ${_calYear}</h3>
+      <h3>📅 Meu Calendário — ${monthNames[get_calMonth()]} ${get_calYear()}</h3>
       <div class="cal-nav">
         <button id="cal-prev">‹ Anterior</button>
         <button id="cal-today">Hoje</button>
@@ -431,7 +432,7 @@ function renderCalendar() {
       dNum = prevMonthDays - firstDay + i + 1;
     } else if (dayCount <= daysInMonth) {
       dNum = dayCount;
-      fullDateStr = `${_calYear}-${String(_calMonth + 1).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
+      fullDateStr = `${get_calYear()}-${String(get_calMonth() + 1).padStart(2, '0')}-${String(dNum).padStart(2, '0')}`;
       if (fullDateStr === todayStr) cellClass += ' today';
       dayCount++;
     } else {
@@ -451,9 +452,9 @@ function renderCalendar() {
   html += `</div>`;
   wrap.innerHTML = html;
 
-  document.getElementById('cal-prev').onclick = () => { _calMonth--; if (_calMonth < 0) { _calMonth = 11; _calYear--; } renderCalendar(); };
-  document.getElementById('cal-next').onclick = () => { _calMonth++; if (_calMonth > 11) { _calMonth = 0; _calYear++; } renderCalendar(); };
-  document.getElementById('cal-today').onclick = () => { const d = new Date(); _calMonth = d.getMonth(); _calYear = d.getFullYear(); renderCalendar(); };
+  document.getElementById('cal-prev').onclick = () => { setCalMonth(get_calMonth() - 1); if (get_calMonth() < 0) { setCalMonth(11); setCalYear(get_calYear() - 1); } renderCalendar(); };
+  document.getElementById('cal-next').onclick = () => { setCalMonth(get_calMonth() + 1); if (get_calMonth() > 11) { setCalMonth(0); setCalYear(get_calYear() + 1); } renderCalendar(); };
+  document.getElementById('cal-today').onclick = () => { const d = new Date(); setCalMonth(d.getMonth()); setCalYear(d.getFullYear()); renderCalendar(); };
 
   wrap.querySelectorAll('[data-cal-card]').forEach(el => {
     el.onclick = () => {
@@ -665,7 +666,7 @@ export function initUI() {
   };
 
   document.getElementById('topbar-search').oninput = e => {
-    _searchQ = e.target.value;
+    setSearchQ(e.target.value);
     renderBoard();
   };
 
