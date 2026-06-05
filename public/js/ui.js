@@ -82,7 +82,7 @@ function renderSidebar() {
 
   groups.forEach(g => {
     const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id)).map(id => STATE.boards[id]).filter(Boolean);
-    if (!isAdm && gBoards.length === 0) return;
+    if (!isAdm && gBoards.length === 0 && g.creatorId !== currentUser.uid) return;
 
     const openKey = 'grp_open_' + g.id;
     const open = localStorage.getItem(openKey) !== 'false';
@@ -981,7 +981,7 @@ export function initUI() {
       if (!name) return;
       const groups = STATE.meta.groups || [];
       const color = GRP_COLORS[groups.length % GRP_COLORS.length];
-      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [] });
+      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [], creatorId: currentUser.uid });
       await saveMeta({ groups });
       toast('Grupo criado', 'success');
     });
@@ -1016,11 +1016,22 @@ export function initUI() {
       toast('Quadro criado', 'success');
     };
 
-    if (!groups.length) {
+    const isAdm = isAdmin();
+    const myBoards = Object.values(STATE.boards).filter(b => isAdm || (b.memberIds && b.memberIds.includes(currentUser.uid)));
+    const myBoardIds = new Set(myBoards.map(b => b.id));
+
+    const allowedGroups = groups.filter(g => {
+      if (isAdm) return true;
+      if (g.creatorId === currentUser.uid) return true;
+      const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id));
+      return gBoards.length > 0;
+    });
+
+    if (!allowedGroups.length) {
       dialog({ title: 'Novo quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, null));
       return;
     }
-    const opts = [{ value: '__none', label: 'Sem grupo' }, ...groups.map(g => ({ value: g.id, label: g.name }))];
+    const opts = [{ value: '__none', label: 'Sem grupo' }, ...allowedGroups.map(g => ({ value: g.id, label: g.name }))];
     dialog({ title: 'Novo quadro — escolha o grupo', select: true, options: opts, okLabel: 'Próximo' }, gid => {
       dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, gid));
     });
