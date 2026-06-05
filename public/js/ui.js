@@ -42,6 +42,16 @@ export function findCard(cardId) {
 export function renderAll() {
   renderSidebar();
   renderBoard();
+
+  const adminOverlay = document.getElementById('admin-overlay');
+  if (adminOverlay && adminOverlay.classList.contains('open')) {
+    renderUserList();
+  }
+
+  const membersOverlay = document.getElementById('members-overlay');
+  if (membersOverlay && membersOverlay.classList.contains('open')) {
+    renderMembersPanel();
+  }
 }
 
 // ─── SIDEBAR ────────────────────────────────────────────
