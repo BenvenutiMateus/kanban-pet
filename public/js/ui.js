@@ -77,12 +77,22 @@ function renderSidebar() {
   const allBoards = Object.values(STATE.boards);
   const groupedIds = new Set(groups.flatMap(g => g.boardIds || []));
   const isAdm = isAdmin();
-  const myBoards = allBoards.filter(b => isAdm || (b.memberIds && b.memberIds.includes(currentUser.uid)));
+
+  const accessibleGroupIds = new Set(groups.filter(g =>
+    isAdm || g.creatorId === currentUser.uid || (g.memberIds && g.memberIds.includes(currentUser.uid))
+  ).map(g => g.id));
+
+  const myBoards = allBoards.filter(b => {
+    if (isAdm) return true;
+    if (b.memberIds && b.memberIds.includes(currentUser.uid)) return true; // fallback to check if user has access to board
+    if (b.groupId) return accessibleGroupIds.has(b.groupId);
+    return false;
+  });
   const myBoardIds = new Set(myBoards.map(b => b.id));
 
   groups.forEach(g => {
     const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id)).map(id => STATE.boards[id]).filter(Boolean);
-    if (!isAdm && gBoards.length === 0 && g.creatorId !== currentUser.uid) return;
+    if (!isAdm && gBoards.length === 0 && g.creatorId !== currentUser.uid && !(g.memberIds && g.memberIds.includes(currentUser.uid))) return;
 
     const openKey = 'grp_open_' + g.id;
     const open = localStorage.getItem(openKey) !== 'false';
@@ -793,7 +803,12 @@ async function saveAndCloseModal() {
 function openMembersPanel() {
   const b = activeBoard();
   if (!b) return;
-  document.getElementById('members-panel-title').textContent = `👥 Membros — ${b.name}`;
+  let titleName = b.name;
+  if (b.groupId) {
+    const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
+    if (g) titleName = `Grupo: ${g.name}`;
+  }
+  document.getElementById('members-panel-title').textContent = `👥 Membros — ${titleName}`;
   renderMembersPanel();
   document.getElementById('members-overlay').classList.add('open');
 }
@@ -801,7 +816,12 @@ function openMembersPanel() {
 function renderMembersPanel() {
   const b = activeBoard();
   if (!b) return;
-  const memberIds = b.memberIds || [];
+  let target = b;
+  if (b.groupId) {
+    const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
+    if (g) target = g;
+  }
+  const memberIds = target.memberIds || [];
   const allUsers = Object.values(STATE.users);
 
   const cur = document.getElementById('current-members-list');
@@ -820,10 +840,19 @@ function renderMembersPanel() {
     if (rb) rb.onclick = async () => {
       const bd = activeBoard();
       if (!bd) return;
-      bd.memberIds = (bd.memberIds || []).filter(id => id !== uid2);
-      await saveBoard(bd.id);
+      if (bd.groupId) {
+        const groups = STATE.meta.groups || [];
+        const g = groups.find(x => x.id === bd.groupId);
+        if (g) {
+          g.memberIds = (g.memberIds || []).filter(id => id !== uid2);
+          await saveMeta({ groups });
+        }
+      } else {
+        bd.memberIds = (bd.memberIds || []).filter(id => id !== uid2);
+        await saveBoard(bd.id);
+      }
       renderMembersPanel();
-      toast(`${u.name} removido do quadro`);
+      toast(`${u.name} removido`);
     };
     cur.appendChild(row);
   });
@@ -1023,6 +1052,7 @@ export function initUI() {
     const allowedGroups = groups.filter(g => {
       if (isAdm) return true;
       if (g.creatorId === currentUser.uid) return true;
+      if (g.memberIds && g.memberIds.includes(currentUser.uid)) return true;
       const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id));
       return gBoards.length > 0;
     });
@@ -1104,8 +1134,17 @@ export function initUI() {
       return;
     }
     const newIds = checked.map(cb => cb.dataset.uid);
-    b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
-    await saveBoard(b.id);
+    if (b.groupId) {
+      const groups = STATE.meta.groups || [];
+      const g = groups.find(x => x.id === b.groupId);
+      if (g) {
+        g.memberIds = [...new Set([...(g.memberIds || []), ...newIds])];
+        await saveMeta({ groups });
+      }
+    } else {
+      b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
+      await saveBoard(b.id);
+    }
     document.getElementById('members-overlay').classList.remove('open');
     toast(`${newIds.length} membro(s) adicionado(s)`, 'success');
   };
