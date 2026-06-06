@@ -103,6 +103,7 @@ function renderSidebar() {
         <div class="sb-group-dot" style="background:${g.color}"></div>
         <span class="sb-group-name sb-label">${esc(g.name)}</span>
         <button class="grp-add-board sb-label" title="Novo quadro neste grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;margin-left:auto;line-height:1;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'">+</button>
+        <button class="grp-rename sb-label" title="Renomear grupo" style="background:none;border:none;color:var(--text3);font-size:14px;padding:0 6px;line-height:1;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'">✏️</button>
         <button class="grp-members sb-label" title="Membros do grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;line-height:1;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'">👥</button>
         <button class="grp-del sb-label" title="Excluir grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;line-height:1;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">×</button>
         <span class="sb-arrow sb-label ${open ? 'open' : ''}">▶</span>
@@ -122,6 +123,15 @@ function renderSidebar() {
     grp.querySelector('.grp-add-board').onclick = e => {
       e.stopPropagation();
       createNewBoard(g.id);
+    };
+
+    grp.querySelector('.grp-rename').onclick = e => {
+      e.stopPropagation();
+      dialog({ title: 'Renomear grupo', input: true, defaultVal: g.name, okLabel: 'Salvar' }, async name => {
+        if (!name) return;
+        g.name = name.trim();
+        await saveMeta({ groups: STATE.meta.groups });
+      });
     };
 
     grp.querySelector('.grp-members').onclick = e => {
@@ -1062,8 +1072,6 @@ export function initUI() {
     });
   };
 
-  document.getElementById('btn-new-board').onclick = () => createNewBoard();
-
   document.getElementById('modal-close').onclick = saveAndCloseModal;
   document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
 
@@ -1116,7 +1124,6 @@ export function initUI() {
     });
   };
 
-  document.getElementById('btn-members-board').onclick = openMembersPanel;
   document.getElementById('members-close').onclick = () => document.getElementById('members-overlay').classList.remove('open');
   document.getElementById('members-overlay').onclick = e => {
     if (e.target === document.getElementById('members-overlay')) document.getElementById('members-overlay').classList.remove('open');
