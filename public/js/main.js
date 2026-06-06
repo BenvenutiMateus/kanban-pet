@@ -5,6 +5,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 import { FB_CONFIG } from './constants.js';
 import { dialog, initDialog } from './dialog.js';
@@ -19,6 +20,7 @@ import { initTheme, toggleTheme } from './theme.js';
 export const fbApp = initializeApp(FB_CONFIG);
 export const auth = getAuth(fbApp);
 export const db = getFirestore(fbApp);
+export const storage = getStorage(fbApp);
 
 // Configurar toggle de tema
 function setupThemeToggle() {

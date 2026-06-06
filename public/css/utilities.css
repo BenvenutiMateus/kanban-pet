@@ -398,6 +398,10 @@
   color: var(--red);
 }
 
+.att-add-row button:hover {
+  background: var(--surface3) !important;
+}
+
 .cl-add-row {
   display: flex;
   gap: 6px;
