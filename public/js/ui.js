@@ -102,7 +102,9 @@ function renderSidebar() {
       <div class="sb-group-header" data-gid="${g.id}">
         <div class="sb-group-dot" style="background:${g.color}"></div>
         <span class="sb-group-name sb-label">${esc(g.name)}</span>
-        <button class="grp-del sb-label" title="Excluir grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;margin-left:auto;line-height:1;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">×</button>
+        <button class="grp-add-board sb-label" title="Novo quadro neste grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;margin-left:auto;line-height:1;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'">+</button>
+        <button class="grp-members sb-label" title="Membros do grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;line-height:1;" onmouseenter="this.style.color='var(--accent)'" onmouseleave="this.style.color='var(--text3)'">👥</button>
+        <button class="grp-del sb-label" title="Excluir grupo" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0 6px;line-height:1;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">×</button>
         <span class="sb-arrow sb-label ${open ? 'open' : ''}">▶</span>
       </div>
       <div class="sb-group-boards" style="max-height:${open ? '600px' : '0'}"></div>
@@ -111,10 +113,20 @@ function renderSidebar() {
     gBoards.forEach(b => boardsDiv.appendChild(sbBoardItem(b)));
 
     grp.querySelector('.sb-group-header').onclick = e => {
-      if (e.target.classList.contains('grp-del')) return;
+      if (e.target.closest('button')) return;
       const isOpen = localStorage.getItem(openKey) !== 'false';
       localStorage.setItem(openKey, isOpen ? 'false' : 'true');
       renderSidebar();
+    };
+
+    grp.querySelector('.grp-add-board').onclick = e => {
+      e.stopPropagation();
+      createNewBoard(g.id);
+    };
+
+    grp.querySelector('.grp-members').onclick = e => {
+      e.stopPropagation();
+      openMembersPanel(g.id);
     };
 
     grp.querySelector('.grp-del').onclick = e => {
@@ -470,7 +482,7 @@ function renderCalendar() {
         <button id="cal-prev">‹ Anterior</button>
         <button id="cal-today">Hoje</button>
         <button id="cal-next">Próximo ›</button>
-        ${isAdmin() ? '<button id="cal-new-meeting" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:6px 14px;cursor:pointer;font-weight:600;">+ Reunião</button>' : ''}
+        <button id="cal-new-meeting" style="background:var(--accent);color:#fff;border:none;border-radius:var(--r);padding:6px 14px;cursor:pointer;font-weight:600;">+ Reunião</button>
       </div>
     </div>
     <div class="cal-grid">
@@ -570,16 +582,16 @@ function openMeetingDialog(meeting = null) {
   dlg.innerHTML = `
     <h3>${editing ? '🗓 Reunião' : 'Nova Reunião'}</h3>
     <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
-      <input id="mtg-title" type="text" placeholder="Título" value="${esc(meeting?.title || '')}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
-      <input id="mtg-date"  type="date" value="${meeting?.date || ''}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
-      <input id="mtg-time"  type="time" value="${meeting?.time || ''}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
-      <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
-      <textarea id="mtg-desc" placeholder="Descrição (opcional)" ${!adm ? 'disabled' : ''} style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
+      <input id="mtg-title" type="text" placeholder="Título" value="${esc(meeting?.title || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-date"  type="date" value="${meeting?.date || ''}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-time"  type="time" value="${meeting?.time || ''}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
     </div>
     <div class="dlg-actions" style="display:flex;gap:8px;justify-content:flex-end">
-      ${editing && adm ? '<button class="btn-danger" id="mtg-del">🗑 Excluir</button>' : ''}
+      ${editing ? '<button class="btn-danger" id="mtg-del">🗑 Excluir</button>' : ''}
       <button class="dlg-cancel" id="mtg-cancel">Fechar</button>
-      ${adm ? '<button class="dlg-ok" id="mtg-save">Salvar</button>' : ''}
+      <button class="dlg-ok" id="mtg-save">Salvar</button>
     </div>
   `;
 
@@ -800,27 +812,52 @@ async function saveAndCloseModal() {
 
 // ─── MEMBERS PANEL ───────────────────────────────────────
 
-function openMembersPanel() {
-  const b = activeBoard();
-  if (!b) return;
-  let titleName = b.name;
-  if (b.groupId) {
-    const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
-    if (g) titleName = `Grupo: ${g.name}`;
+function openMembersPanel(groupId = null) {
+  let target = null;
+  let titleName = '';
+
+  const overlay = document.getElementById('members-overlay');
+
+  if (groupId) {
+    target = (STATE.meta.groups || []).find(x => x.id === groupId);
+    if (!target) return;
+    titleName = `Grupo: ${target.name}`;
+    overlay.dataset.groupId = groupId;
+  } else {
+    const b = activeBoard();
+    if (!b) return;
+    target = b;
+    titleName = b.name;
+    if (b.groupId) {
+      const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
+      if (g) { target = g; titleName = `Grupo: ${g.name}`; }
+    }
+    delete overlay.dataset.groupId;
   }
+
   document.getElementById('members-panel-title').textContent = `👥 Membros — ${titleName}`;
   renderMembersPanel();
-  document.getElementById('members-overlay').classList.add('open');
+  overlay.classList.add('open');
 }
 
 function renderMembersPanel() {
-  const b = activeBoard();
-  if (!b) return;
-  let target = b;
-  if (b.groupId) {
-    const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
-    if (g) target = g;
+  const overlay = document.getElementById('members-overlay');
+  let target = null;
+
+  if (overlay.dataset.groupId) {
+    target = (STATE.meta.groups || []).find(x => x.id === overlay.dataset.groupId);
+  } else {
+    const b = activeBoard();
+    if (!b) return;
+    target = b;
+    if (b.groupId) {
+      const g = (STATE.meta.groups || []).find(x => x.id === b.groupId);
+      if (g) target = g;
+    }
   }
+
+  if (!target) return;
+
   const memberIds = target.memberIds || [];
   const allUsers = Object.values(STATE.users);
 
@@ -838,18 +875,27 @@ function renderMembersPanel() {
     `;
     const rb = row.querySelector('.member-remove');
     if (rb) rb.onclick = async () => {
-      const bd = activeBoard();
-      if (!bd) return;
-      if (bd.groupId) {
+      const overlay = document.getElementById('members-overlay');
+      let targetGroup = null;
+      let targetBoard = null;
+
+      if (overlay.dataset.groupId) {
         const groups = STATE.meta.groups || [];
-        const g = groups.find(x => x.id === bd.groupId);
-        if (g) {
-          g.memberIds = (g.memberIds || []).filter(id => id !== uid2);
-          await saveMeta({ groups });
-        }
+        targetGroup = groups.find(x => x.id === overlay.dataset.groupId);
       } else {
-        bd.memberIds = (bd.memberIds || []).filter(id => id !== uid2);
-        await saveBoard(bd.id);
+        targetBoard = activeBoard();
+        if (targetBoard && targetBoard.groupId) {
+          const groups = STATE.meta.groups || [];
+          targetGroup = groups.find(x => x.id === targetBoard.groupId);
+        }
+      }
+
+      if (targetGroup) {
+        targetGroup.memberIds = (targetGroup.memberIds || []).filter(id => id !== uid2);
+        await saveMeta({ groups: STATE.meta.groups });
+      } else if (targetBoard) {
+        targetBoard.memberIds = (targetBoard.memberIds || []).filter(id => id !== uid2);
+        await saveBoard(targetBoard.id);
       }
       renderMembersPanel();
       toast(`${u.name} removido`);
@@ -1016,56 +1062,7 @@ export function initUI() {
     });
   };
 
-  document.getElementById('btn-new-board').onclick = () => {
-    const groups = STATE.meta.groups || [];
-    const step2 = async (name, gid) => {
-      if (!name) return;
-      const color = BOARD_COLORS[Object.keys(STATE.boards).length % BOARD_COLORS.length];
-      const boardId = uid();
-      const board = {
-        id: boardId, name: name.trim(), color,
-        groupId: gid || null,
-        memberIds: [currentUser.uid],
-        columns: [
-          { id: uid(), title: 'A fazer', cards: [] },
-          { id: uid(), title: 'Em andamento', cards: [] },
-          { id: uid(), title: 'Concluído', cards: [] },
-        ]
-      };
-      await setDoc(doc(db, 'boards', boardId), board);
-      if (gid && gid !== '__none') {
-        const g = groups.find(x => x.id === gid);
-        if (g) {
-          g.boardIds = [...(g.boardIds || []), boardId];
-          await saveMeta({ groups });
-        }
-      }
-      setLocalNav(boardId, 'board');
-      renderAll();
-      toast('Quadro criado', 'success');
-    };
-
-    const isAdm = isAdmin();
-    const myBoards = Object.values(STATE.boards).filter(b => isAdm || (b.memberIds && b.memberIds.includes(currentUser.uid)));
-    const myBoardIds = new Set(myBoards.map(b => b.id));
-
-    const allowedGroups = groups.filter(g => {
-      if (isAdm) return true;
-      if (g.creatorId === currentUser.uid) return true;
-      if (g.memberIds && g.memberIds.includes(currentUser.uid)) return true;
-      const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id));
-      return gBoards.length > 0;
-    });
-
-    if (!allowedGroups.length) {
-      dialog({ title: 'Novo quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, null));
-      return;
-    }
-    const opts = [{ value: '__none', label: 'Sem grupo' }, ...allowedGroups.map(g => ({ value: g.id, label: g.name }))];
-    dialog({ title: 'Novo quadro — escolha o grupo', select: true, options: opts, okLabel: 'Próximo' }, gid => {
-      dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, gid));
-    });
-  };
+  document.getElementById('btn-new-board').onclick = () => createNewBoard();
 
   document.getElementById('modal-close').onclick = saveAndCloseModal;
   document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
@@ -1126,24 +1123,36 @@ export function initUI() {
   };
 
   document.getElementById('btn-save-members').onclick = async () => {
-    const b = activeBoard();
-    if (!b) return;
+    const overlay = document.getElementById('members-overlay');
+    let targetGroup = null;
+    let targetBoard = null;
+
+    if (overlay.dataset.groupId) {
+      const groups = STATE.meta.groups || [];
+      targetGroup = groups.find(x => x.id === overlay.dataset.groupId);
+    } else {
+      targetBoard = activeBoard();
+      if (targetBoard && targetBoard.groupId) {
+        const groups = STATE.meta.groups || [];
+        targetGroup = groups.find(x => x.id === targetBoard.groupId);
+      }
+    }
+
+    if (!targetGroup && !targetBoard) return;
+
     const checked = Array.from(document.querySelectorAll('#add-members-list input[type=checkbox]:checked'));
     if (!checked.length) {
       document.getElementById('members-overlay').classList.remove('open');
       return;
     }
     const newIds = checked.map(cb => cb.dataset.uid);
-    if (b.groupId) {
-      const groups = STATE.meta.groups || [];
-      const g = groups.find(x => x.id === b.groupId);
-      if (g) {
-        g.memberIds = [...new Set([...(g.memberIds || []), ...newIds])];
-        await saveMeta({ groups });
-      }
-    } else {
-      b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
-      await saveBoard(b.id);
+
+    if (targetGroup) {
+      targetGroup.memberIds = [...new Set([...(targetGroup.memberIds || []), ...newIds])];
+      await saveMeta({ groups: STATE.meta.groups });
+    } else if (targetBoard) {
+      targetBoard.memberIds = [...new Set([...(targetBoard.memberIds || []), ...newIds])];
+      await saveBoard(targetBoard.id);
     }
     document.getElementById('members-overlay').classList.remove('open');
     toast(`${newIds.length} membro(s) adicionado(s)`, 'success');
@@ -1152,4 +1161,60 @@ export function initUI() {
   document.getElementById('btn-admin').onclick = openAdmin;
   document.getElementById('admin-close').onclick = () => document.getElementById('admin-overlay').classList.remove('open');
   document.getElementById('btn-add-user').onclick = addUserAdmin;
+}
+
+function createNewBoard(preselectedGroupId = null) {
+  const groups = STATE.meta.groups || [];
+  const step2 = async (name, gid) => {
+    if (!name) return;
+    const color = BOARD_COLORS[Object.keys(STATE.boards).length % BOARD_COLORS.length];
+    const boardId = uid();
+    const board = {
+      id: boardId, name: name.trim(), color,
+      groupId: gid || null,
+      memberIds: [currentUser.uid],
+      columns: [
+        { id: uid(), title: 'A fazer', cards: [] },
+        { id: uid(), title: 'Em andamento', cards: [] },
+        { id: uid(), title: 'Concluído', cards: [] },
+      ]
+    };
+    await setDoc(doc(db, 'boards', boardId), board);
+    if (gid && gid !== '__none') {
+      const g = groups.find(x => x.id === gid);
+      if (g) {
+        g.boardIds = [...(g.boardIds || []), boardId];
+        await saveMeta({ groups });
+      }
+    }
+    setLocalNav(boardId, 'board');
+    renderAll();
+    toast('Quadro criado', 'success');
+  };
+
+  if (preselectedGroupId) {
+    dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, preselectedGroupId));
+    return;
+  }
+
+  const isAdm = isAdmin();
+  const myBoards = Object.values(STATE.boards).filter(b => isAdm || (b.memberIds && b.memberIds.includes(currentUser.uid)));
+  const myBoardIds = new Set(myBoards.map(b => b.id));
+
+  const allowedGroups = groups.filter(g => {
+    if (isAdm) return true;
+    if (g.creatorId === currentUser.uid) return true;
+    if (g.memberIds && g.memberIds.includes(currentUser.uid)) return true;
+    const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id));
+    return gBoards.length > 0;
+  });
+
+  if (!allowedGroups.length) {
+    dialog({ title: 'Novo quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, null));
+    return;
+  }
+  const opts = [{ value: '__none', label: 'Sem grupo' }, ...allowedGroups.map(g => ({ value: g.id, label: g.name }))];
+  dialog({ title: 'Novo quadro — escolha o grupo', select: true, options: opts, okLabel: 'Próximo' }, gid => {
+    dialog({ title: 'Nome do quadro', input: true, defaultVal: 'Novo Quadro', okLabel: 'Criar' }, name => step2(name, gid));
+  });
 }
