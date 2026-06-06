@@ -903,6 +903,16 @@ function renderMembersPanel() {
       if (targetGroup) {
         targetGroup.memberIds = (targetGroup.memberIds || []).filter(id => id !== uid2);
         await saveMeta({ groups: STATE.meta.groups });
+
+        if (targetGroup.boardIds) {
+          for (const bId of targetGroup.boardIds) {
+            const b = STATE.boards[bId];
+            if (b && b.memberIds) {
+              b.memberIds = b.memberIds.filter(id => id !== uid2);
+              await saveBoard(b.id);
+            }
+          }
+        }
       } else if (targetBoard) {
         targetBoard.memberIds = (targetBoard.memberIds || []).filter(id => id !== uid2);
         await saveBoard(targetBoard.id);
@@ -965,7 +975,12 @@ function renderUserList() {
       ${u.id !== currentUser.uid ? `<button class="user-del" data-uid="${u.id}" title="Remover usuário">×</button>` : ''}
     `;
     const rb = row.querySelector('[data-role-uid]');
-    if (rb) rb.onclick = async () => { await saveUser(u.id, { role: nextRole }); toast(`${u.name} agora é ${nextRole}`, 'success'); };
+    if (rb) rb.onclick = async () => {
+      STATE.users[u.id].role = nextRole;
+      renderUserList();
+      await saveUser(u.id, { role: nextRole });
+      toast(`${u.name} agora é ${nextRole}`, 'success');
+    };
     const db2 = row.querySelector('.user-del');
     if (db2) db2.onclick = async () => {
       dialog({ title: 'Remover usuário?', msg: `"${u.name}" perderá o acesso.`, danger: true, okLabel: 'Remover' }, async ok => {
@@ -1157,6 +1172,17 @@ export function initUI() {
     if (targetGroup) {
       targetGroup.memberIds = [...new Set([...(targetGroup.memberIds || []), ...newIds])];
       await saveMeta({ groups: STATE.meta.groups });
+
+      // Update boards inside this group
+      if (targetGroup.boardIds) {
+        for (const bId of targetGroup.boardIds) {
+          const b = STATE.boards[bId];
+          if (b) {
+            b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
+            await saveBoard(b.id);
+          }
+        }
+      }
     } else if (targetBoard) {
       targetBoard.memberIds = [...new Set([...(targetBoard.memberIds || []), ...newIds])];
       await saveBoard(targetBoard.id);
@@ -1176,10 +1202,21 @@ function createNewBoard(preselectedGroupId = null) {
     if (!name) return;
     const color = BOARD_COLORS[Object.keys(STATE.boards).length % BOARD_COLORS.length];
     const boardId = uid();
+    const boardMemberIds = [currentUser.uid];
+    if (gid && gid !== '__none') {
+      const g = groups.find(x => x.id === gid);
+      if (g && g.memberIds) {
+        g.memberIds.forEach(mId => {
+          if (!boardMemberIds.includes(mId)) {
+            boardMemberIds.push(mId);
+          }
+        });
+      }
+    }
     const board = {
       id: boardId, name: name.trim(), color,
       groupId: gid || null,
-      memberIds: [currentUser.uid],
+      memberIds: boardMemberIds,
       columns: [
         { id: uid(), title: 'A fazer', cards: [] },
         { id: uid(), title: 'Em andamento', cards: [] },
