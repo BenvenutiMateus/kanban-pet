@@ -15,6 +15,8 @@ import { db, auth } from './main.js';
 import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { storage } from './main.js';
 
 export function me() {
   return currentUser ? STATE.users[currentUser.uid] : null;
@@ -186,6 +188,7 @@ function renderBoard() {
     if (found) {
       renderChecklist(found.card);
       renderComments(found.card);
+      renderAttachments(found.card);
     }
     setPendingRender(true);
     return;
@@ -702,8 +705,69 @@ export function openModal(cardId) {
 
   renderChecklist(card);
   renderComments(card);
+  renderAttachments(card);
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('modal-title').focus();
+}
+
+function renderAttachments(card) {
+  const atts = card.attachments || [];
+  document.getElementById('att-count').textContent = atts.length;
+  const el = document.getElementById('modal-attachments');
+  el.innerHTML = '';
+
+  if (!atts.length) {
+    el.innerHTML = '<p style="font-size:11px;color:var(--text2);padding:6px 0">Nenhum anexo.</p>';
+    return;
+  }
+
+  atts.forEach((att, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;padding:6px;background:var(--surface2);border-radius:4px;margin-bottom:6px;gap:8px;border:1px solid var(--border);';
+
+    const icon = document.createElement('div');
+    icon.textContent = '📎';
+    icon.style.cssText = 'font-size:12px;opacity:0.7;';
+
+    const link = document.createElement('a');
+    link.href = att.url;
+    link.target = '_blank';
+    link.textContent = att.name;
+    link.style.cssText = 'font-size:12px;color:var(--text);text-decoration:none;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    link.title = att.name;
+
+    const sizeStr = att.size ? (att.size / 1024 / 1024).toFixed(2) + 'MB' : '';
+    const size = document.createElement('span');
+    size.textContent = sizeStr;
+    size.style.cssText = 'font-size:10px;color:var(--text2);';
+
+    const del = document.createElement('button');
+    del.innerHTML = '×';
+    del.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px;';
+    del.title = 'Excluir anexo';
+    del.onclick = async () => {
+      dialog({ title: 'Excluir anexo?', msg: 'Deseja excluir este arquivo?', danger: true, okLabel: 'Excluir' }, async ok => {
+        if (!ok) return;
+        const f = findCard(get_modalCardId());
+        if (!f) return;
+
+        try {
+          const fileRef = ref(storage, att.path);
+          await deleteObject(fileRef);
+        } catch (e) {
+          console.warn('File already deleted from storage or access denied', e);
+        }
+
+        f.card.attachments.splice(i, 1);
+        await saveBoard(activeBoard().id);
+        renderAttachments(f.card);
+        toast('Anexo excluído', 'success');
+      });
+    };
+
+    row.append(icon, link, size, del);
+    el.appendChild(row);
+  });
 }
 
 function renderChecklist(card) {
@@ -1089,6 +1153,68 @@ export function initUI() {
 
   document.getElementById('modal-close').onclick = saveAndCloseModal;
   document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
+
+  document.getElementById('att-add-btn').onclick = () => {
+    document.getElementById('att-file-input').click();
+  };
+
+  document.getElementById('att-file-input').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const f = findCard(get_modalCardId());
+    if (!f) return;
+
+    const maxMb = 10;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast(`Arquivo muito grande. Limite: ${maxMb}MB`, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const progEl = document.getElementById('att-progress');
+    const btnEl = document.getElementById('att-add-btn');
+    progEl.style.display = 'block';
+    btnEl.style.display = 'none';
+    progEl.textContent = 'Enviando... 0%';
+
+    const ext = file.name.split('.').pop() || '';
+    const attId = uid();
+    const filePath = `attachments/${f.card.id}/${attId}.${ext}`;
+    const fileRef = ref(storage, filePath);
+    const uploadTask = uploadBytesResumable(fileRef, file);
+
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        progEl.textContent = `Enviando... ${Math.round(progress)}%`;
+      },
+      (error) => {
+        progEl.style.display = 'none';
+        btnEl.style.display = 'block';
+        toast('Erro ao enviar arquivo: ' + error.message, 'error');
+        e.target.value = '';
+      },
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        if (!f.card.attachments) f.card.attachments = [];
+        f.card.attachments.push({
+          id: attId,
+          name: file.name,
+          url: downloadURL,
+          path: filePath,
+          size: file.size,
+          ts: Date.now(),
+          userId: currentUser.uid
+        });
+        await saveBoard(activeBoard().id);
+        renderAttachments(f.card);
+        progEl.style.display = 'none';
+        btnEl.style.display = 'block';
+        e.target.value = '';
+        toast('Anexo adicionado!', 'success');
+      }
+    );
+  };
 
   document.getElementById('cl-add-btn').onclick = async () => {
     const inp = document.getElementById('cl-new-input');
