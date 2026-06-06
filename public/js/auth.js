@@ -2,7 +2,8 @@
 // AUTH.JS - AUTENTICAÇÃO
 // ════════════════════════════════════════════════════════
 import { signInWithEmailAndPassword, signOut, updatePassword,
-         createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+         createUserWithEmailAndPassword, updateProfile,
+         GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { auth } from './main.js';
 import { currentUser } from './state.js';
 import { toast } from './utils.js';
@@ -70,6 +71,25 @@ export async function doLogin() {
   }
 }
 
+export async function doGoogleLogin() {
+  const err = document.getElementById('login-err');
+  const btn = document.getElementById('btn-google-login');
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Redirecionando...';
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  } catch(e) {
+    if (e.code !== 'auth/popup-closed-by-user') {
+      err.textContent = 'Erro ao logar com Google: ' + e.message;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar com Google';
+  }
+}
+
 export async function doRegister() {
   const name  = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
@@ -118,6 +138,7 @@ export async function doRegister() {
 export function initAuth() {
   // Login
   document.getElementById('btn-login').onclick = doLogin;
+  document.getElementById('btn-google-login').onclick = doGoogleLogin;
   document.getElementById('login-pass').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
   document.getElementById('login-email').onkeydown = e => { if (e.key === 'Enter') document.getElementById('login-pass').focus(); };
 
