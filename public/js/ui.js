@@ -1195,23 +1195,33 @@ export function initUI() {
         e.target.value = '';
       },
       async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        if (!f.card.attachments) f.card.attachments = [];
-        f.card.attachments.push({
-          id: attId,
-          name: file.name,
-          url: downloadURL,
-          path: filePath,
-          size: file.size,
-          ts: Date.now(),
-          userId: currentUser.uid
-        });
-        await saveBoard(activeBoard().id);
-        renderAttachments(f.card);
-        progEl.style.display = 'none';
-        btnEl.style.display = 'block';
-        e.target.value = '';
-        toast('Anexo adicionado!', 'success');
+        try {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+          // Must re-find card because await might have delayed us and reference could be stale
+          const currentF = findCard(f.card.id);
+          if (!currentF) throw new Error("Card não encontrado");
+
+          if (!currentF.card.attachments) currentF.card.attachments = [];
+          currentF.card.attachments.push({
+            id: attId,
+            name: file.name,
+            url: downloadURL,
+            path: filePath,
+            size: file.size,
+            ts: Date.now(),
+            userId: currentUser.uid
+          });
+          await saveBoard(activeBoard().id);
+          renderAttachments(currentF.card);
+          toast('Anexo adicionado!', 'success');
+        } catch (err) {
+          toast('Erro ao processar anexo: ' + err.message, 'error');
+        } finally {
+          progEl.style.display = 'none';
+          btnEl.style.display = 'block';
+          e.target.value = '';
+        }
       }
     );
   };
