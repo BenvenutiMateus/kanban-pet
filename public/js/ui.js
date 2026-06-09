@@ -1322,10 +1322,9 @@ export function initUI() {
     const bd = activeBoard();
     mentions.forEach(mention => {
       const username = mention.slice(1).toLowerCase(); // remove @
-      // Find user by name, ignoring case
+      // Find user by standard username format: lowercased, spaces to underscores
       const mentionedUser = Object.values(STATE.users).find(u =>
-        u.name && u.name.toLowerCase().replace(/\s+/g, '') === username ||
-        u.name && u.name.toLowerCase() === username ||
+        u.name && u.name.toLowerCase().replace(/[^a-z0-9]/g, '_') === username ||
         u.email && u.email.split('@')[0].toLowerCase() === username
       );
       if (mentionedUser && mentionedUser.id !== currentUser.uid) {
@@ -1345,6 +1344,43 @@ export function initUI() {
     renderComments(f.card);
     await saveBoard(activeBoard().id);
     inp.value = '';
+  };
+
+  document.getElementById('cm-input').oninput = e => {
+    const val = e.target.value;
+    const drop = document.getElementById('mention-dropdown');
+    const match = val.match(/@([\w.-]*)$/);
+    if (match) {
+      const q = match[1].toLowerCase();
+      const users = Object.values(STATE.users).filter(u =>
+        (u.name && u.name.toLowerCase().replace(/[^a-z0-9]/g, '_').includes(q)) ||
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.email && u.email.split('@')[0].toLowerCase().includes(q))
+      );
+      if (users.length > 0) {
+        drop.innerHTML = users.map(u => {
+          const username = u.name ? u.name.toLowerCase().replace(/[^a-z0-9]/g, '_') : u.email.split('@')[0].toLowerCase();
+          return `<div class="mention-item" style="padding:6px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;" data-username="${username}">
+            <div style="width:20px;height:20px;border-radius:50%;background:${u.color}22;color:${u.color};display:flex;align-items:center;justify-content:center;font-weight:bold;">${initials(u.name)}</div>
+            <div>${esc(u.name)} <span style="color:var(--text3);font-size:10px;">@${username}</span></div>
+          </div>`;
+        }).join('');
+        drop.style.display = 'block';
+        drop.querySelectorAll('.mention-item').forEach(item => {
+          item.onclick = () => {
+            const username = item.dataset.username;
+            const newVal = val.replace(/@([\w.-]*)$/, `@${username} `);
+            e.target.value = newVal;
+            drop.style.display = 'none';
+            e.target.focus();
+          };
+        });
+      } else {
+        drop.style.display = 'none';
+      }
+    } else {
+      drop.style.display = 'none';
+    }
   };
 
   document.getElementById('cm-input').onkeydown = e => {
