@@ -57,12 +57,20 @@ export function startListeners() {
   }));
 
   // meetings — adiciona junto com os outros addUnsub
-    addUnsub(onSnapshot(collection(db, 'meetings'), snap => {
-  if (!STATE.meetings) STATE.meetings = {}; // ← guard por segurança
-  snap.forEach(d => { STATE.meetings[d.id] = { id: d.id, ...d.data() }; });
-  snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.meetings[ch.doc.id]; });
-  renderAll();
-}));
+  addUnsub(onSnapshot(collection(db, 'meetings'), snap => {
+    if (!STATE.meetings) STATE.meetings = {}; // ← guard por segurança
+    snap.forEach(d => { STATE.meetings[d.id] = { id: d.id, ...d.data() }; });
+    snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.meetings[ch.doc.id]; });
+    renderAll();
+  }));
+
+  // notifications
+  addUnsub(onSnapshot(collection(db, 'notifications'), snap => {
+    if (!STATE.notifications) STATE.notifications = {};
+    snap.forEach(d => { STATE.notifications[d.id] = { id: d.id, ...d.data() }; });
+    snap.docChanges().forEach(ch => { if (ch.type === 'removed') delete STATE.notifications[ch.doc.id]; });
+    renderAll();
+  }));
 }
 
 export function stopListeners() {
@@ -77,4 +85,14 @@ export async function saveMeeting(meeting) {
 export async function deleteMeeting(id) {
   await deleteDoc(doc(db, 'meetings', id))
     .catch(e => toast('Erro ao excluir reunião: ' + e.message, 'error'));
+}
+
+export async function saveNotification(notification) {
+  await setDoc(doc(db, 'notifications', notification.id), notification)
+    .catch(e => console.error('Erro ao salvar notificação: ', e));
+}
+
+export async function markNotificationRead(id) {
+  await updateDoc(doc(db, 'notifications', id), { read: true })
+    .catch(e => console.error('Erro ao marcar notificação como lida: ', e));
 }
