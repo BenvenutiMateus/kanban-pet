@@ -195,6 +195,16 @@
           <input type="date" id="modal-due">
         </div>
         <div class="m-section">
+          <label>Lembrar-me</label>
+          <select id="modal-reminder" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface2); color: var(--text);">
+            <option value="-1">Não lembrar</option>
+            <option value="0">No dia do prazo</option>
+            <option value="1">1 dia antes</option>
+            <option value="2">2 dias antes</option>
+            <option value="7">1 semana antes</option>
+          </select>
+        </div>
+        <div class="m-section">
           <label>Responsáveis</label>
           <div class="assignee-list" id="modal-assignees"></div>
         </div>
