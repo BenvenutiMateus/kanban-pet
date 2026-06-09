@@ -112,7 +112,6 @@ function eventCard(ev, past = false) {
         ${recLabel ? `<span class="ep-tag" style="background:${ev.color}22;color:${ev.color}">🔁 ${recLabel}</span>` : ''}
         ${invCount ? `<span class="ep-tag">👥 ${invCount} convidado${invCount>1?'s':''}</span>` : '<span class="ep-tag">👥 Todos</span>'}
         ${ev.checklist?.length ? `<span class="ep-tag">☑ ${ev.checklist.filter(i=>i.done).length}/${ev.checklist.length}</span>` : ''}
-        ${ev.attachments?.length ? `<span class="ep-tag">📎 ${ev.attachments.length}</span>` : ''}
         ${creator ? `<span class="ep-tag">Por ${escHtml(creator.name)}</span>` : ''}
       </div>
     </div>

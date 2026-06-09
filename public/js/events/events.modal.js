@@ -67,7 +67,6 @@ export function initEventModal() {
   document.getElementById('ev-cl-new').onkeydown    = e => {
     if (e.key === 'Enter') { e.preventDefault(); addChecklistItem(); }
   };
-  document.getElementById('ev-attachments').onchange = handleFileSelect;
 
   // Color swatches
   document.getElementById('ev-color-swatches').addEventListener('click', e => {
@@ -88,7 +87,6 @@ function resetForm() {
   document.getElementById('ev-recurrence').value = 'none';
   document.getElementById('ev-recurrence-end-wrap').style.display = 'none';
   document.getElementById('ev-cl-list').innerHTML = '';
-  document.getElementById('ev-file-list').innerHTML = '';
   renderColorSwatches('#4f9cf9');
   renderUserCheckboxes([]);
 }
@@ -173,18 +171,6 @@ function syncRecurrenceEnd() {
 }
 
 // Armazena arquivos selecionados (somente metadados — upload real depende do seu Storage)
-let _pendingFiles = [];
-function handleFileSelect(e) {
-  _pendingFiles = Array.from(e.target.files);
-  const list = document.getElementById('ev-file-list');
-  list.innerHTML = '';
-  _pendingFiles.forEach(f => {
-    const item = document.createElement('div');
-    item.className = 'ev-file-item';
-    item.innerHTML = `📎 <span>${escHtml(f.name)}</span> <small>${(f.size/1024).toFixed(1)} KB</small>`;
-    list.appendChild(item);
-  });
-}
 
 // ── Save / Delete ─────────────────────────────────────────
 
@@ -215,7 +201,6 @@ async function handleSave() {
     recurrence,
     recurrenceEnd,
     checklist:      _checklistItems,
-    attachments:    _pendingFiles.map(f => ({ name: f.name, size: f.size })),
   };
 
   const btn = document.getElementById('ev-btn-save');
@@ -274,7 +259,6 @@ function showModal() {
 }
 function closeModal() {
   document.getElementById('ev-modal-overlay').classList.remove('open');
-  _pendingFiles = [];
 }
 
 // ── Inject HTML ───────────────────────────────────────────
@@ -331,9 +315,6 @@ function injectHTML() {
         </div>
         <div id="ev-attendance-section" class="ev-field" style="display:none"></div>
         <div class="ev-field">
-          <label>Anexos</label>
-          <input type="file" id="ev-attachments" multiple style="font-size:12px;color:var(--text2)">
-          <div id="ev-file-list" class="ev-file-list"></div>
         </div>
       </div>
       <!-- Coluna lateral -->
