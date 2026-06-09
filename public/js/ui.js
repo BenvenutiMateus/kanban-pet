@@ -325,7 +325,6 @@ function renderBoard() {
     if (found) {
       renderChecklist(found.card);
       renderComments(found.card);
-      renderAttachments(found.card);
     }
     setPendingRender(true);
     return;
@@ -883,7 +882,6 @@ export function openModal(cardId) {
 
   renderChecklist(card);
   renderComments(card);
-  renderAttachments(card);
 
   const btnGcal = document.getElementById('modal-add-to-gcal');
   if (btnGcal) {
@@ -1370,7 +1368,6 @@ export function initUI() {
             userId: currentUser.uid
           });
           await saveBoard(activeBoard().id);
-          renderAttachments(currentF.card);
           toast('Anexo adicionado!', 'success');
         } catch (err) {
           toast('Erro ao processar anexo: ' + err.message, 'error');
