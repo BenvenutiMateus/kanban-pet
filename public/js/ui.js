@@ -325,6 +325,7 @@ function renderBoard() {
     if (found) {
       renderChecklist(found.card);
       renderComments(found.card);
+      renderModalAttachments(found.card);
     }
     setPendingRender(true);
     return;
@@ -882,6 +883,7 @@ export function openModal(cardId) {
 
   renderChecklist(card);
   renderComments(card);
+  renderModalAttachments(card);
 
   const btnGcal = document.getElementById('modal-add-to-gcal');
   if (btnGcal) {
@@ -1002,6 +1004,54 @@ function renderComments(card) {
     };
     el.appendChild(div);
   });
+}
+
+function renderModalAttachments(card) {
+  const container = document.getElementById('modal-attachments');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!card.attachments || card.attachments.length === 0) return;
+
+  card.attachments.forEach(att => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:8px;border-radius:var(--r);border:1px solid var(--border);';
+
+    const a = document.createElement('a');
+    a.href = att.url;
+    a.target = '_blank';
+    a.textContent = att.name;
+    a.style.cssText = 'color:var(--text);text-decoration:none;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;';
+
+    const btnDel = document.createElement('button');
+    btnDel.textContent = '🗑';
+    btnDel.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;';
+    btnDel.onclick = () => deleteAttachment(card.id, att.id);
+
+    div.appendChild(a);
+    div.appendChild(btnDel);
+    container.appendChild(div);
+  });
+}
+
+async function deleteAttachment(cardId, attId) {
+  if (!confirm("Tem certeza que deseja excluir este anexo?")) return;
+
+  const f = findCard(cardId);
+  if (!f) return;
+
+  const attIdx = f.card.attachments.findIndex(a => a.id === attId);
+  if (attIdx === -1) return;
+
+  const att = f.card.attachments[attIdx];
+  if (att && att.path) {
+    const fileRef = ref(storage, att.path);
+    deleteObject(fileRef).catch(err => console.error("Erro ao excluir arquivo do storage:", err));
+  }
+
+  f.card.attachments.splice(attIdx, 1);
+
+  await saveBoard(activeBoard().id);
+  renderModalAttachments(f.card);
 }
 
 async function saveAndCloseModal() {
@@ -1368,6 +1418,7 @@ export function initUI() {
             userId: currentUser.uid
           });
           await saveBoard(activeBoard().id);
+          renderModalAttachments(currentF.card);
           toast('Anexo adicionado!', 'success');
         } catch (err) {
           toast('Erro ao processar anexo: ' + err.message, 'error');
