@@ -182,8 +182,9 @@
         <div class="m-section">
           <label>Comentários <span id="cm-count" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text2)">0</span></label>
           <div id="modal-comments"></div>
-          <div class="cm-compose">
+          <div class="cm-compose" style="position:relative;">
             <textarea id="cm-input" placeholder="Comentário... (Ctrl+Enter para enviar)"></textarea>
+            <div id="mention-dropdown" style="display:none; position:absolute; bottom:100%; left:0; width:100%; max-height:150px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow); z-index:1000;"></div>
             <button class="btn-save" id="cm-send" style="align-self:flex-end;font-size:11px;padding:7px 11px">Enviar</button>
           </div>
         </div>

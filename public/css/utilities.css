@@ -1000,7 +1000,7 @@
 [data-tip]:hover::after {
   content: attr(data-tip);
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   background: #06111d;
@@ -1011,7 +1011,7 @@
   border-radius: 5px;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 99;
+  z-index: 9999;
 }
 
 /* ════════════════════════════════════════════════════════
