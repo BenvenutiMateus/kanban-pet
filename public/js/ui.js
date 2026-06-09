@@ -10,7 +10,7 @@ import { STATE, _currentView, _activeBoardId, currentUser,
 import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
 import { uid, esc, initials, createUsername, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
-import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting, saveNotification, markNotificationRead } from './firestore.js';
+import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting, saveNotification, markNotificationRead, deleteNotification } from './firestore.js';
 import { db, auth } from './main.js';
 import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -72,22 +72,31 @@ function checkDueReminders() {
           const diffDays = Math.ceil((dueTime - nowTime) / (1000 * 60 * 60 * 24));
           const reminderDays = parseInt(card.reminder, 10);
 
-          if (diffDays <= reminderDays && diffDays >= 0) {
-            const notifId = `remind_${card.id}_${card.due}_${card.reminder}`;
+          if (diffDays <= reminderDays) {
+            let notifType = 'upcoming';
+            if (diffDays === 0) notifType = 'today';
+            else if (diffDays < 0) notifType = 'overdue';
+
+            const notifId = `remind_${currentUser.uid}_${card.id}_${card.due}_${notifType}`;
             if (!STATE.notifications || !STATE.notifications[notifId]) {
               // Set locally immediately to prevent duplicate triggers before DB syncs
               if (!STATE.notifications) STATE.notifications = {};
               STATE.notifications[notifId] = { id: notifId, read: false }; // placeholder
 
+              let text = `Lembrete: A tarefa "${card.title}" vence em ${diffDays} dia(s).`;
+              if (diffDays === 0) text = `Lembrete: A tarefa "${card.title}" vence hoje.`;
+              else if (diffDays < 0) text = `Atraso: A tarefa "${card.title}" está atrasada em ${Math.abs(diffDays)} dia(s).`;
+
               saveNotification({
                 id: notifId,
                 userId: currentUser.uid,
                 type: 'reminder',
-                text: `Lembrete: A tarefa "${card.title}" vence ${diffDays === 0 ? 'hoje' : 'em ' + diffDays + ' dia(s)'}.`,
+                text,
                 boardId: b.id,
                 cardId: card.id,
                 read: false,
-                ts: Date.now()
+                ts: Date.now(),
+                deleted: false
               });
             }
           }
@@ -106,7 +115,7 @@ function renderNotifications() {
   if (!badge || !listEl) return;
 
   const notifs = Object.values(STATE.notifications || {})
-    .filter(n => n.userId === currentUser.uid)
+    .filter(n => n.userId === currentUser.uid && !n.deleted)
     .sort((a, b) => b.ts - a.ts);
 
   const unreadCount = notifs.filter(n => !n.read).length;
@@ -118,6 +127,19 @@ function renderNotifications() {
   }
 
   listEl.innerHTML = '';
+
+  const btnClear = document.getElementById('btn-clear-notifs');
+  if (btnClear) {
+    btnClear.style.display = notifs.length > 0 ? 'block' : 'none';
+    btnClear.onclick = () => {
+      notifs.forEach(n => {
+        n.deleted = true; // Optimistic local update
+        deleteNotification(n.id);
+      });
+      renderNotifications();
+    };
+  }
+
   if (notifs.length === 0) {
     listEl.innerHTML = '<div style="color:var(--text2); text-align:center; padding:10px;">Nenhuma notificação</div>';
     return;
@@ -125,19 +147,31 @@ function renderNotifications() {
 
   notifs.forEach(n => {
     const item = document.createElement('div');
-    item.style.cssText = `padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 8px; ${!n.read ? 'background: var(--surface2);' : ''}`;
+    item.style.cssText = `padding: 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; ${!n.read ? 'background: var(--surface2);' : ''}`;
 
     // Dot indicator for unread
     const dot = document.createElement('div');
     dot.style.cssText = `width: 8px; height: 8px; border-radius: 50%; min-width: 8px; background: ${!n.read ? 'var(--accent)' : 'transparent'}`;
 
     const textDiv = document.createElement('div');
-    textDiv.style.cssText = 'flex: 1; font-size: 13px; line-height: 1.4;';
+    textDiv.style.cssText = 'flex: 1; font-size: 13px; line-height: 1.4; cursor: pointer;';
     textDiv.innerHTML = `<div>${esc(n.text)}</div><div style="font-size: 11px; color: var(--text3); margin-top: 4px;">${fmtTs(n.ts)}</div>`;
 
-    item.append(dot, textDiv);
+    const delBtn = document.createElement('button');
+    delBtn.innerHTML = '✖';
+    delBtn.style.cssText = 'background: none; border: none; color: var(--text3); cursor: pointer; font-size: 12px; padding: 4px;';
+    delBtn.title = 'Excluir';
 
-    item.onclick = async () => {
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      n.deleted = true; // Optimistic local update
+      deleteNotification(n.id);
+      renderNotifications();
+    };
+
+    item.append(dot, textDiv, delBtn);
+
+    textDiv.onclick = async () => {
       document.getElementById('notif-dropdown').style.display = 'none';
       if (!n.read) await markNotificationRead(n.id);
 
