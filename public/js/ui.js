@@ -739,6 +739,7 @@ function openMeetingDialog(meeting = null) {
       <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
     </div>
     <div class="dlg-actions" style="display:flex;gap:8px;justify-content:flex-end">
+      ${editing ? '<button class="btn-save" id="mtg-gcal" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">📅 G Agenda</button>' : ''}
       ${editing ? '<button class="btn-danger" id="mtg-del">🗑 Excluir</button>' : ''}
       <button class="dlg-cancel" id="mtg-cancel">Fechar</button>
       <button class="dlg-ok" id="mtg-save">Salvar</button>
@@ -746,6 +747,45 @@ function openMeetingDialog(meeting = null) {
   `;
 
   overlay.classList.add('open');
+
+  if (editing) {
+    document.getElementById('mtg-gcal').onclick = () => {
+      const title = meeting.title || 'Reunião Sem Título';
+      const desc = meeting.desc || '';
+      const loc = meeting.location || '';
+      const date = meeting.date; // YYYY-MM-DD
+      const time = meeting.time; // HH:MM
+
+      let datesParam = '';
+      if (date) {
+        if (time) {
+          // Trata como hora local
+          const dStart = new Date(`${date}T${time}:00`);
+          const dEnd = new Date(dStart.getTime() + 60*60*1000); // +1 hora padrão
+
+          const formatStr = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+          // Para formatar como local sem o 'Z' (que indica UTC), basta não usar ISOString com Z,
+          // mas o Google Agenda sem o Z assume o horário no timezone do usuário.
+
+          const pad = n => String(n).padStart(2, '0');
+          const fmt = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+
+          datesParam = `&dates=${fmt(dStart)}/${fmt(dEnd)}`;
+        } else {
+          // Apenas dia inteiro
+          const d = new Date(date + 'T00:00:00');
+          const pad = n => String(n).padStart(2, '0');
+          const d1Str = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+          d.setDate(d.getDate() + 1);
+          const d2Str = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+          datesParam = `&dates=${d1Str}/${d2Str}`;
+        }
+      }
+
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(loc)}${datesParam}`;
+      window.open(url, '_blank');
+    };
+  }
 
   document.getElementById('mtg-cancel').onclick = () => overlay.classList.remove('open');
   overlay.onclick = e => { if (e.target === overlay) overlay.classList.remove('open'); };
@@ -844,6 +884,30 @@ export function openModal(cardId) {
   renderChecklist(card);
   renderComments(card);
   renderAttachments(card);
+
+  const btnGcal = document.getElementById('modal-add-to-gcal');
+  if (btnGcal) {
+    btnGcal.onclick = () => {
+      const title = card.title || 'Tarefa Sem Título';
+      const desc = card.desc || '';
+      const due = card.due;
+
+      let datesParam = '';
+      if (due) {
+        // Formato para dia inteiro: YYYYMMDD/YYYYMMDD (terminando no dia seguinte para ser de 1 dia)
+        const d = new Date(due + 'T00:00:00'); // Trata como local time
+        const pad = n => String(n).padStart(2, '0');
+        const d1Str = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+        d.setDate(d.getDate() + 1);
+        const d2Str = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+        datesParam = `&dates=${d1Str}/${d2Str}`;
+      }
+
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(desc)}${datesParam}`;
+      window.open(url, '_blank');
+    };
+  }
+
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('modal-title').focus();
 }
