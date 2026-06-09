@@ -297,6 +297,8 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  z-index: 100;
+  position: relative;
 }
 
 #board-meta {

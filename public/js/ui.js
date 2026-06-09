@@ -1376,8 +1376,9 @@ export function initUI() {
       const username = mention.slice(1).toLowerCase(); // remove @
       // Find user by standard username format: lowercased, spaces to underscores
       const mentionedUser = Object.values(STATE.users).find(u =>
-        u.name && createUsername(u.name) === username ||
-        u.email && createUsername(u.email.split('@')[0]) === username
+        (bd && bd.memberIds && bd.memberIds.includes(u.id)) &&
+        (u.name && createUsername(u.name) === username ||
+        u.email && createUsername(u.email.split('@')[0]) === username)
       );
       if (mentionedUser && mentionedUser.id !== currentUser.uid) {
         saveNotification({
@@ -1404,7 +1405,8 @@ export function initUI() {
     const match = val.match(/@([\w.-]*)$/);
     if (match) {
       const q = match[1].toLowerCase();
-      const users = Object.values(STATE.users).filter(u =>
+      const bd = activeBoard();
+      const users = Object.values(STATE.users).filter(u => bd && bd.memberIds && bd.memberIds.includes(u.id)).filter(u =>
         (u.name && createUsername(u.name).includes(q)) ||
         (u.name && u.name.toLowerCase().includes(q)) ||
         (u.email && createUsername(u.email.split('@')[0]).includes(q))
