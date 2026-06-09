@@ -459,6 +459,9 @@ function renderBoard() {
       const idx = fromCol.cards.findIndex(c => c.id === drag.cardId);
       if (idx === -1) return;
       const [moved] = fromCol.cards.splice(idx, 1);
+      if (fromCol.id !== toCol.id) {
+        logAction(moved, `Moveu a tarefa para a coluna "${toCol.title}"`);
+      }
       toCol.cards.push(moved);
       await saveBoard(bd.id);
     });
@@ -489,7 +492,9 @@ function renderBoard() {
       if (!bd) return;
       const c2 = bd.columns.find(c => c.id === col.id);
       if (!c2) return;
-      c2.cards.push({ id: uid(), title: t, desc: '', tags: [], due: '', checklist: [], comments: [], assignees: [], done: false, createdBy: currentUser.uid, createdAt: Date.now() });
+      const newCard = { id: uid(), title: t, desc: '', tags: [], due: '', checklist: [], comments: [], assignees: [], done: false, createdBy: currentUser.uid, createdAt: Date.now(), logs: [] };
+      logAction(newCard, 'Criou a tarefa');
+      c2.cards.push(newCard);
       form.classList.remove('open');
       inp.value = '';
       await saveBoard(bd.id);
@@ -882,6 +887,7 @@ export function openModal(cardId) {
 
   renderChecklist(card);
   renderComments(card);
+  renderLogs(card);
 
   const btnGcal = document.getElementById('modal-add-to-gcal');
   if (btnGcal) {
@@ -933,7 +939,9 @@ function renderChecklist(card) {
       const f = findCard(get_modalCardId());
       if (!f) return;
       f.card.checklist[i].done = cb.checked;
+      logAction(f.card, `Marcou "${item.text}" como ${cb.checked ? 'concluído' : 'pendente'}`);
       renderChecklist(f.card);
+      renderLogs(f.card);
       await saveBoard(activeBoard().id);
     };
     const txt = document.createElement('input');
@@ -954,13 +962,48 @@ function renderChecklist(card) {
     del.onclick = async () => {
       const f = findCard(get_modalCardId());
       if (!f) return;
+      const removedText = f.card.checklist[i].text;
       f.card.checklist.splice(i, 1);
+      logAction(f.card, `Removeu "${removedText}" do checklist`);
       renderChecklist(f.card);
+      renderLogs(f.card);
       await saveBoard(activeBoard().id);
     };
     row.append(cb, txt, del);
     cl.appendChild(row);
   });
+}
+
+export function logAction(card, actionText) {
+  if (!card.logs) card.logs = [];
+  card.logs.push({
+    text: actionText,
+    ts: Date.now(),
+    userId: currentUser.uid
+  });
+}
+
+function renderLogs(card) {
+  const el = document.getElementById('modal-logs');
+  if (!el) return;
+  const logs = card.logs || [];
+  el.innerHTML = '';
+  if (!logs.length) {
+    el.innerHTML = '<p style="font-size:11px;color:var(--text2);padding:0">Nenhum registro ainda.</p>';
+    return;
+  }
+  logs.slice().reverse().forEach(lg => {
+    const u = STATE.users[lg.userId];
+    const div = document.createElement('div');
+    div.style.fontSize = '11px';
+    div.style.color = 'var(--text2)';
+    div.style.padding = '4px 0';
+    div.style.borderBottom = '1px solid var(--border)';
+    div.innerHTML = `<strong style="color:var(--text);">${esc(u?.name || '?')}</strong> ${esc(lg.text)} <span style="opacity:0.6;margin-left:4px;">${fmtTs(lg.ts)}</span>`;
+    el.appendChild(div);
+  });
+  // Remove last border
+  if (el.lastChild) el.lastChild.style.borderBottom = 'none';
 }
 
 function renderComments(card) {
@@ -987,19 +1030,24 @@ function renderComments(card) {
         <div class="cm-meta">
           <span class="cm-author">${esc(u?.name || '?')}</span>
           <span class="cm-time">${fmtTs(cm.ts)}</span>
-          <button class="cm-del" data-i="${i}">× remover</button>
+          ${cm.userId === currentUser?.uid ? `<button class="cm-del" data-i="${i}">× remover</button>` : ''}
         </div>
         <div class="cm-text">${esc(cm.text).replace(/@([\w.-]+)/g, '<span style="color:var(--accent);font-weight:600;">@$1</span>')}</div>
       </div>
     `;
     div.prepend(avDiv);
-    div.querySelector('.cm-del').onclick = async () => {
-      const f = findCard(get_modalCardId());
-      if (!f) return;
-      f.card.comments.splice(i, 1);
-      renderComments(f.card);
-      await saveBoard(activeBoard().id);
-    };
+    const delBtn = div.querySelector('.cm-del');
+    if (delBtn) {
+      delBtn.onclick = async () => {
+        const f = findCard(get_modalCardId());
+        if (!f) return;
+        f.card.comments.splice(i, 1);
+        logAction(f.card, 'Removeu um comentário');
+        renderComments(f.card);
+        renderLogs(f.card);
+        await saveBoard(activeBoard().id);
+      };
+    }
     el.appendChild(div);
   });
 }
@@ -1309,77 +1357,6 @@ export function initUI() {
   document.getElementById('modal-close').onclick = saveAndCloseModal;
   document.getElementById('modal-overlay').onclick = e => { if (e.target === document.getElementById('modal-overlay')) saveAndCloseModal(); };
 
-  document.getElementById('att-add-btn').onclick = () => {
-    document.getElementById('att-file-input').click();
-  };
-
-  document.getElementById('att-file-input').onchange = async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const f = findCard(get_modalCardId());
-    if (!f) return;
-
-    const maxMb = 10;
-    if (file.size > maxMb * 1024 * 1024) {
-      toast(`Arquivo muito grande. Limite: ${maxMb}MB`, 'error');
-      e.target.value = '';
-      return;
-    }
-
-    const progEl = document.getElementById('att-progress');
-    const btnEl = document.getElementById('att-add-btn');
-    progEl.style.display = 'block';
-    btnEl.style.display = 'none';
-    progEl.textContent = 'Enviando... 0%';
-
-    const ext = file.name.split('.').pop() || '';
-    const attId = uid();
-    const filePath = `attachments/${f.card.id}/${attId}.${ext}`;
-    const fileRef = ref(storage, filePath);
-    const uploadTask = uploadBytesResumable(fileRef, file);
-
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        progEl.textContent = `Enviando... ${Math.round(progress)}%`;
-      },
-      (error) => {
-        progEl.style.display = 'none';
-        btnEl.style.display = 'block';
-        toast('Erro ao enviar arquivo: ' + error.message, 'error');
-        e.target.value = '';
-      },
-      async () => {
-        try {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-          // Must re-find card because await might have delayed us and reference could be stale
-          const currentF = findCard(f.card.id);
-          if (!currentF) throw new Error("Card não encontrado");
-
-          if (!currentF.card.attachments) currentF.card.attachments = [];
-          currentF.card.attachments.push({
-            id: attId,
-            name: file.name,
-            url: downloadURL,
-            path: filePath,
-            size: file.size,
-            ts: Date.now(),
-            userId: currentUser.uid
-          });
-          await saveBoard(activeBoard().id);
-          toast('Anexo adicionado!', 'success');
-        } catch (err) {
-          toast('Erro ao processar anexo: ' + err.message, 'error');
-        } finally {
-          progEl.style.display = 'none';
-          btnEl.style.display = 'block';
-          e.target.value = '';
-        }
-      }
-    );
-  };
-
   document.getElementById('cl-add-btn').onclick = async () => {
     const inp = document.getElementById('cl-new-input');
     const t = inp.value.trim();
@@ -1387,7 +1364,9 @@ export function initUI() {
     const f = findCard(get_modalCardId());
     if (!f) return;
     f.card.checklist.push({ id: uid(), text: t, done: false });
+    logAction(f.card, `Adicionou o item "${t}" no checklist`);
     renderChecklist(f.card);
+    renderLogs(f.card);
     await saveBoard(activeBoard().id);
     inp.value = '';
     inp.focus();
@@ -1403,6 +1382,7 @@ export function initUI() {
     if (!f) return;
     if (!f.card.comments) f.card.comments = [];
     f.card.comments.push({ id: uid(), userId: currentUser.uid, text: t, ts: Date.now() });
+    logAction(f.card, 'Adicionou um comentário');
 
     // Parse mentions and create notifications
     const mentions = t.match(/@([\w.-]+)/g) || [];
