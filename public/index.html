@@ -107,7 +107,15 @@
 
   <main id="main">
     <div id="topbar">
+      <div id="board-meta" style="display:none">
+        <span id="board-title-text"></span>
+        <button class="tb-action" id="btn-rename-board">Renomear</button>
+        <button class="tb-action danger" id="btn-del-board">Excluir</button>
+        <div class="tb-members" id="tb-members"></div>
+      </div>
+      <input type="search" id="topbar-search" placeholder="🔍 Buscar tarefas..." style="display:none">
       <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; position: relative;">
+        <button id="btn-theme-toggle" title="Alternar tema" style="background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--r); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">☀️</button>
         <button id="btn-notif-toggle" title="Notificações" style="background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--r); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; position: relative;">
           🔔
           <span id="notif-badge" style="display:none; position: absolute; top: -5px; right: -5px; background: var(--red); color: white; font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 10px;">0</span>
@@ -118,15 +126,7 @@
           </div>
           <div id="notif-list" style="padding: 8px;"></div>
         </div>
-        <button id="btn-theme-toggle" title="Alternar tema" style="background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--r); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">☀️</button>
       </div>
-      <div id="board-meta" style="display:none">
-        <span id="board-title-text"></span>
-        <button class="tb-action" id="btn-rename-board">Renomear</button>
-        <button class="tb-action danger" id="btn-del-board">Excluir</button>
-        <div class="tb-members" id="tb-members"></div>
-      </div>
-      <input type="search" id="topbar-search" placeholder="🔍 Buscar tarefas..." style="display:none">
     </div>
 
     <div id="empty-state">
