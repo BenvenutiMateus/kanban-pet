@@ -912,66 +912,6 @@ export function openModal(cardId) {
   document.getElementById('modal-title').focus();
 }
 
-function renderAttachments(card) {
-  const atts = card.attachments || [];
-  document.getElementById('att-count').textContent = atts.length;
-  const el = document.getElementById('modal-attachments');
-  el.innerHTML = '';
-
-  if (!atts.length) {
-    el.innerHTML = '<p style="font-size:11px;color:var(--text2);padding:6px 0">Nenhum anexo.</p>';
-    return;
-  }
-
-  atts.forEach((att, i) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;padding:6px;background:var(--surface2);border-radius:4px;margin-bottom:6px;gap:8px;border:1px solid var(--border);';
-
-    const icon = document.createElement('div');
-    icon.textContent = '📎';
-    icon.style.cssText = 'font-size:12px;opacity:0.7;';
-
-    const link = document.createElement('a');
-    link.href = att.url;
-    link.target = '_blank';
-    link.textContent = att.name;
-    link.style.cssText = 'font-size:12px;color:var(--text);text-decoration:none;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    link.title = att.name;
-
-    const sizeStr = att.size ? (att.size / 1024 / 1024).toFixed(2) + 'MB' : '';
-    const size = document.createElement('span');
-    size.textContent = sizeStr;
-    size.style.cssText = 'font-size:10px;color:var(--text2);';
-
-    const del = document.createElement('button');
-    del.innerHTML = '×';
-    del.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px;';
-    del.title = 'Excluir anexo';
-    del.onclick = async () => {
-      dialog({ title: 'Excluir anexo?', msg: 'Deseja excluir este arquivo?', danger: true, okLabel: 'Excluir' }, async ok => {
-        if (!ok) return;
-        const f = findCard(get_modalCardId());
-        if (!f) return;
-
-        try {
-          const fileRef = ref(storage, att.path);
-          await deleteObject(fileRef);
-        } catch (e) {
-          console.warn('File already deleted from storage or access denied', e);
-        }
-
-        f.card.attachments.splice(i, 1);
-        await saveBoard(activeBoard().id);
-        renderAttachments(f.card);
-        toast('Anexo excluído', 'success');
-      });
-    };
-
-    row.append(icon, link, size, del);
-    el.appendChild(row);
-  });
-}
-
 function renderChecklist(card) {
   const total = card.checklist.length, done = card.checklist.filter(x => x.done).length;
   document.getElementById('cl-summary').textContent = `${done}/${total}`;
