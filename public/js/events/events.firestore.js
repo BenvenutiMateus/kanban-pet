@@ -134,7 +134,6 @@ function buildPayload(data) {
     recurrence:     data.recurrence || 'none',  // 'none'|'daily'|'weekly'|'monthly'
     recurrenceEnd:  data.recurrenceEnd || null,
     checklist:      data.checklist || [],
-    attachments:    data.attachments || [],
     createdBy:      currentUser?.uid || '',
     createdAt:      serverTimestamp(),
   };
