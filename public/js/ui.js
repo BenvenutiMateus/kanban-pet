@@ -8,7 +8,7 @@ import { STATE, _currentView, _activeBoardId, currentUser,
   get_lastBoardHash, get_searchQ, get_calMonth, get_calYear,
   get_modalCardId, get_drag, get_pendingRender, setPendingRender } from './state.js';
 import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
-import { uid, esc, initials, fmtDate, fmtTs, today, toast } from './utils.js';
+import { uid, esc, initials, createUsername, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
 import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting, saveNotification, markNotificationRead } from './firestore.js';
 import { db, auth } from './main.js';
@@ -55,6 +55,46 @@ export function renderAll() {
   if (membersOverlay && membersOverlay.classList.contains('open')) {
     renderMembersPanel();
   }
+
+  checkDueReminders();
+}
+
+function checkDueReminders() {
+  if (!currentUser) return;
+  const nowTime = new Date(today() + 'T00:00:00').getTime();
+
+  Object.values(STATE.boards).forEach(b => {
+    if (!b.memberIds || !b.memberIds.includes(currentUser.uid)) return;
+    (b.columns || []).forEach(col => {
+      (col.cards || []).forEach(card => {
+        if (!card.done && card.due && card.reminder && card.reminder !== '-1' && (card.assignees || []).includes(currentUser.uid)) {
+          const dueTime = new Date(card.due + 'T00:00:00').getTime();
+          const diffDays = Math.ceil((dueTime - nowTime) / (1000 * 60 * 60 * 24));
+          const reminderDays = parseInt(card.reminder, 10);
+
+          if (diffDays <= reminderDays && diffDays >= 0) {
+            const notifId = `remind_${card.id}_${card.due}_${card.reminder}`;
+            if (!STATE.notifications || !STATE.notifications[notifId]) {
+              // Set locally immediately to prevent duplicate triggers before DB syncs
+              if (!STATE.notifications) STATE.notifications = {};
+              STATE.notifications[notifId] = { id: notifId, read: false }; // placeholder
+
+              saveNotification({
+                id: notifId,
+                userId: currentUser.uid,
+                type: 'reminder',
+                text: `Lembrete: A tarefa "${card.title}" vence ${diffDays === 0 ? 'hoje' : 'em ' + diffDays + ' dia(s)'}.`,
+                boardId: b.id,
+                cardId: card.id,
+                read: false,
+                ts: Date.now()
+              });
+            }
+          }
+        }
+      });
+    });
+  });
 }
 
 // ─── NOTIFICATIONS ──────────────────────────────────────
@@ -718,6 +758,7 @@ export function openModal(cardId) {
   document.getElementById('modal-title').value = card.title;
   document.getElementById('modal-desc').value = card.desc || '';
   document.getElementById('modal-due').value = card.due || '';
+  document.getElementById('modal-reminder').value = card.reminder !== undefined ? card.reminder : '-1';
 
   const te = document.getElementById('modal-tags');
   te.innerHTML = '';
@@ -939,6 +980,7 @@ async function saveAndCloseModal() {
   if (t) card.title = t;
   card.desc = document.getElementById('modal-desc').value.trim();
   card.due = document.getElementById('modal-due').value;
+  card.reminder = document.getElementById('modal-reminder').value;
   card.tags = Array.from(document.querySelectorAll('.tag-toggle.active')).map(el => el.dataset.tid).filter(Boolean);
   card.assignees = Array.from(document.querySelectorAll('.assignee-row input[type=checkbox]')).filter(cb => cb.checked).map(cb => cb.dataset.uid);
   const bd = activeBoard();
@@ -1334,8 +1376,8 @@ export function initUI() {
       const username = mention.slice(1).toLowerCase(); // remove @
       // Find user by standard username format: lowercased, spaces to underscores
       const mentionedUser = Object.values(STATE.users).find(u =>
-        u.name && u.name.toLowerCase().replace(/[^a-z0-9]/g, '_') === username ||
-        u.email && u.email.split('@')[0].toLowerCase() === username
+        u.name && createUsername(u.name) === username ||
+        u.email && createUsername(u.email.split('@')[0]) === username
       );
       if (mentionedUser && mentionedUser.id !== currentUser.uid) {
         saveNotification({
@@ -1363,13 +1405,13 @@ export function initUI() {
     if (match) {
       const q = match[1].toLowerCase();
       const users = Object.values(STATE.users).filter(u =>
-        (u.name && u.name.toLowerCase().replace(/[^a-z0-9]/g, '_').includes(q)) ||
+        (u.name && createUsername(u.name).includes(q)) ||
         (u.name && u.name.toLowerCase().includes(q)) ||
-        (u.email && u.email.split('@')[0].toLowerCase().includes(q))
+        (u.email && createUsername(u.email.split('@')[0]).includes(q))
       );
       if (users.length > 0) {
         drop.innerHTML = users.map(u => {
-          const username = u.name ? u.name.toLowerCase().replace(/[^a-z0-9]/g, '_') : u.email.split('@')[0].toLowerCase();
+          const username = u.name ? createUsername(u.name) : createUsername(u.email.split('@')[0]);
           return `<div class="mention-item" style="padding:6px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;" data-username="${username}">
             <div style="width:20px;height:20px;border-radius:50%;background:${u.color}22;color:${u.color};display:flex;align-items:center;justify-content:center;font-weight:bold;">${initials(u.name)}</div>
             <div>${esc(u.name)} <span style="color:var(--text3);font-size:10px;">@${username}</span></div>
