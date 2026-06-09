@@ -18,7 +18,9 @@ export function fmtTs(ts) {
 }
 
 export function today() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
 }
 
 export function toast(msg, type = 'info') {
