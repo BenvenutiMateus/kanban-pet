@@ -96,3 +96,8 @@ export async function markNotificationRead(id) {
   await updateDoc(doc(db, 'notifications', id), { read: true })
     .catch(e => console.error('Erro ao marcar notificação como lida: ', e));
 }
+
+export async function deleteNotification(id) {
+  await updateDoc(doc(db, 'notifications', id), { deleted: true })
+    .catch(e => console.error('Erro ao excluir notificação: ', e));
+}
