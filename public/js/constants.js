@@ -25,7 +25,7 @@ export const FB_CONFIG = {
   apiKey:            "AIzaSyBGQNhmiME4JlvWWjgRBbGsXOPfxGWJlpY",
   authDomain:        "pet-estatistica.firebaseapp.com",
   projectId:         "pet-estatistica",
-  storageBucket:     "pet-estatistica.firebasestorage.app",
+  storageBucket:     "pet-estatistica.appspot.com",
   messagingSenderId: "1002350146009",
   appId:             "1:1002350146009:web:30e2ee2496a3f668f2e9c8",
 };

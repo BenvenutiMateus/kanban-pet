@@ -7,6 +7,7 @@ export let STATE = {
   users:  {},
   boards: {},
   meetings: {},
+  notifications: {},
 };
 
 export let currentUser = null;

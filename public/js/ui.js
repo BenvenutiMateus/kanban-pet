@@ -10,7 +10,7 @@ import { STATE, _currentView, _activeBoardId, currentUser,
 import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
 import { uid, esc, initials, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
-import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting } from './firestore.js';
+import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting, saveNotification, markNotificationRead } from './firestore.js';
 import { db, auth } from './main.js';
 import { doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -44,6 +44,7 @@ export function findCard(cardId) {
 export function renderAll() {
   renderSidebar();
   renderBoard();
+  renderNotifications();
 
   const adminOverlay = document.getElementById('admin-overlay');
   if (adminOverlay && adminOverlay.classList.contains('open')) {
@@ -54,6 +55,68 @@ export function renderAll() {
   if (membersOverlay && membersOverlay.classList.contains('open')) {
     renderMembersPanel();
   }
+}
+
+// ─── NOTIFICATIONS ──────────────────────────────────────
+
+function renderNotifications() {
+  if (!currentUser) return;
+  const badge = document.getElementById('notif-badge');
+  const listEl = document.getElementById('notif-list');
+  if (!badge || !listEl) return;
+
+  const notifs = Object.values(STATE.notifications || {})
+    .filter(n => n.userId === currentUser.uid)
+    .sort((a, b) => b.ts - a.ts);
+
+  const unreadCount = notifs.filter(n => !n.read).length;
+  if (unreadCount > 0) {
+    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  listEl.innerHTML = '';
+  if (notifs.length === 0) {
+    listEl.innerHTML = '<div style="color:var(--text2); text-align:center; padding:10px;">Nenhuma notificação</div>';
+    return;
+  }
+
+  notifs.forEach(n => {
+    const item = document.createElement('div');
+    item.style.cssText = `padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 8px; ${!n.read ? 'background: var(--surface2);' : ''}`;
+
+    // Dot indicator for unread
+    const dot = document.createElement('div');
+    dot.style.cssText = `width: 8px; height: 8px; border-radius: 50%; min-width: 8px; background: ${!n.read ? 'var(--accent)' : 'transparent'}`;
+
+    const textDiv = document.createElement('div');
+    textDiv.style.cssText = 'flex: 1; font-size: 13px; line-height: 1.4;';
+    textDiv.innerHTML = `<div>${esc(n.text)}</div><div style="font-size: 11px; color: var(--text3); margin-top: 4px;">${fmtTs(n.ts)}</div>`;
+
+    item.append(dot, textDiv);
+
+    item.onclick = async () => {
+      document.getElementById('notif-dropdown').style.display = 'none';
+      if (!n.read) await markNotificationRead(n.id);
+
+      // Navigate to the board and card if available
+      if (n.boardId && STATE.boards[n.boardId]) {
+        setLocalNav(n.boardId, 'board');
+        renderAll();
+        if (n.cardId) {
+          // Add a small delay to let the board render first
+          setTimeout(() => {
+            const found = findCard(n.cardId);
+            if (found) openModal(n.cardId);
+          }, 50);
+        }
+      }
+    };
+
+    listEl.appendChild(item);
+  });
 }
 
 // ─── SIDEBAR ────────────────────────────────────────────
@@ -849,7 +912,7 @@ function renderComments(card) {
           <span class="cm-time">${fmtTs(cm.ts)}</span>
           <button class="cm-del" data-i="${i}">× remover</button>
         </div>
-        <div class="cm-text">${esc(cm.text)}</div>
+        <div class="cm-text">${esc(cm.text).replace(/@([\w.-]+)/g, '<span style="color:var(--accent);font-weight:600;">@$1</span>')}</div>
       </div>
     `;
     div.prepend(avDiv);
@@ -1097,6 +1160,20 @@ async function addUserAdmin() {
 // ─── INIT UI ─────────────────────────────────────────────
 
 export function initUI() {
+  const notifBtn = document.getElementById('btn-notif-toggle');
+  const notifDropdown = document.getElementById('notif-dropdown');
+  if (notifBtn && notifDropdown) {
+    notifBtn.onclick = (e) => {
+      e.stopPropagation();
+      notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+    };
+    document.addEventListener('click', (e) => {
+      if (!notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
+        notifDropdown.style.display = 'none';
+      }
+    });
+  }
+
   document.getElementById('btn-calendar').onclick = () => {
     setLocalNav(null, 'calendar');
     renderAll();
@@ -1239,6 +1316,32 @@ export function initUI() {
     if (!f) return;
     if (!f.card.comments) f.card.comments = [];
     f.card.comments.push({ id: uid(), userId: currentUser.uid, text: t, ts: Date.now() });
+
+    // Parse mentions and create notifications
+    const mentions = t.match(/@([\w.-]+)/g) || [];
+    const bd = activeBoard();
+    mentions.forEach(mention => {
+      const username = mention.slice(1).toLowerCase(); // remove @
+      // Find user by name, ignoring case
+      const mentionedUser = Object.values(STATE.users).find(u =>
+        u.name && u.name.toLowerCase().replace(/\s+/g, '') === username ||
+        u.name && u.name.toLowerCase() === username ||
+        u.email && u.email.split('@')[0].toLowerCase() === username
+      );
+      if (mentionedUser && mentionedUser.id !== currentUser.uid) {
+        saveNotification({
+          id: uid(),
+          userId: mentionedUser.id,
+          type: 'mention',
+          text: `${STATE.users[currentUser.uid]?.name || 'Alguém'} mencionou você na tarefa "${f.card.title}"`,
+          boardId: bd?.id,
+          cardId: f.card.id,
+          read: false,
+          ts: Date.now()
+        });
+      }
+    });
+
     renderComments(f.card);
     await saveBoard(activeBoard().id);
     inp.value = '';
