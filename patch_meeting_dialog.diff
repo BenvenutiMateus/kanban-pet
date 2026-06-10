@@ -1,0 +1,14 @@
+<<<<<<< SEARCH
+      <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
+    </div>
+=======
+      <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-link" type="url" placeholder="Link da Reunião (ex: https://meet.google.com/...)" value="${esc(meeting?.meetingLink || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <select id="mtg-group" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        <option value="">Nenhum Grupo (Privado/Convidados)</option>
+        ${(STATE.meta.groups || []).map(g => `<option value="${g.id}" ${meeting?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
+      </select>
+      <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
+    </div>
+>>>>>>> REPLACE

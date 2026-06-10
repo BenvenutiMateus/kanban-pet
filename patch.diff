@@ -1,0 +1,21 @@
+<<<<<<< SEARCH
+import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
+=======
+import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG, ROLES } from './constants.js';
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+export function isAdmin() {
+  const u = me();
+  return u && ['admin', 'tutor'].includes(u.role);
+}
+=======
+export function isAdmin() {
+  const u = me();
+  return u && ['admin', 'tutor'].includes(u.role);
+}
+
+export function isPET() {
+  const u = me();
+  return u && u.role && ROLES[u.role]?.isPET;
+}
+>>>>>>> REPLACE
