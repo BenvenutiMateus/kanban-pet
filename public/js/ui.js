@@ -1473,7 +1473,7 @@ export function initUI() {
       if (!name) return;
       const groups = STATE.meta.groups || [];
       const color = GRP_COLORS[groups.length % GRP_COLORS.length];
-      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [], creatorId: currentUser.uid });
+      groups.push({ id: uid(), name: name.trim(), color, open: true, boardIds: [], creatorId: currentUser.uid, memberIds: [currentUser.uid] });
       await saveMeta({ groups });
       toast('Grupo criado', 'success');
     });
