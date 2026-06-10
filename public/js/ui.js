@@ -1207,13 +1207,15 @@ function renderMembersPanel() {
         await saveMeta({ groups: STATE.meta.groups });
 
         if (targetGroup.boardIds) {
-          for (const bId of targetGroup.boardIds) {
-            const b = STATE.boards[bId];
-            if (b && b.memberIds) {
-              b.memberIds = b.memberIds.filter(id => id !== uid2);
-              await saveBoard(b.id);
-            }
-          }
+          await Promise.all(
+            targetGroup.boardIds.map(async (bId) => {
+              const b = STATE.boards[bId];
+              if (b && b.memberIds) {
+                b.memberIds = b.memberIds.filter(id => id !== uid2);
+                await saveBoard(b.id);
+              }
+            })
+          );
         }
       } else if (targetBoard) {
         targetBoard.memberIds = (targetBoard.memberIds || []).filter(id => id !== uid2);
@@ -1558,13 +1560,15 @@ export function initUI() {
 
       // Update boards inside this group
       if (targetGroup.boardIds) {
-        for (const bId of targetGroup.boardIds) {
-          const b = STATE.boards[bId];
-          if (b) {
-            b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
-            await saveBoard(b.id);
-          }
-        }
+        await Promise.all(
+          targetGroup.boardIds.map(async (bId) => {
+            const b = STATE.boards[bId];
+            if (b) {
+              b.memberIds = [...new Set([...(b.memberIds || []), ...newIds])];
+              await saveBoard(b.id);
+            }
+          })
+        );
       }
     } else if (targetBoard) {
       targetBoard.memberIds = [...new Set([...(targetBoard.memberIds || []), ...newIds])];
