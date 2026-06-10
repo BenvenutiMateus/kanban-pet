@@ -29,7 +29,7 @@ export function isAdmin() {
 
 export function isPET() {
   const u = me();
-  return u && u.role && ROLES[u.role]?.isPET;
+  return !!(u && u.role && ROLES[u.role] && ROLES[u.role].isPET);
 }
 
 export function activeBoard() {
@@ -871,6 +871,16 @@ function openMeetingDialog(meeting = null) {
         <option value="">Nenhum Grupo (Privado/Convidados)</option>
         ${(STATE.meta.groups || []).map(g => `<option value="${g.id}" ${meeting?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
       </select>
+      <div style="display:flex;gap:10px">
+        <select id="mtg-recurrence" style="flex:1;padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+          <option value="none" ${meeting?.recurrence === 'none' ? 'selected' : ''}>Sem Repetição</option>
+          <option value="daily" ${meeting?.recurrence === 'daily' ? 'selected' : ''}>Diário</option>
+          <option value="weekly" ${meeting?.recurrence === 'weekly' ? 'selected' : ''}>Semanal</option>
+          <option value="biweekly" ${meeting?.recurrence === 'biweekly' ? 'selected' : ''}>Quinzenal</option>
+          <option value="monthly" ${meeting?.recurrence === 'monthly' ? 'selected' : ''}>Mensal</option>
+        </select>
+        <input id="mtg-recurrence-end" type="date" title="Data limite da repetição" value="${meeting?.recurrenceEnd || ''}" style="flex:1;padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);${!meeting?.recurrence || meeting.recurrence === 'none' ? 'display:none' : ''}">
+      </div>
       <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
     </div>
     <div class="dlg-actions" style="display:flex;gap:8px;justify-content:flex-end">
@@ -882,6 +892,14 @@ function openMeetingDialog(meeting = null) {
   `;
 
   overlay.classList.add('open');
+
+  const recSel = document.getElementById('mtg-recurrence');
+  const recEnd = document.getElementById('mtg-recurrence-end');
+  if (recSel) {
+    recSel.onchange = () => {
+      recEnd.style.display = recSel.value === 'none' ? 'none' : '';
+    };
+  }
 
   if (editing) {
     document.getElementById('mtg-gcal').onclick = () => {
@@ -935,6 +953,13 @@ function openMeetingDialog(meeting = null) {
   const title = document.getElementById('mtg-title').value.trim();
   const date  = document.getElementById('mtg-date').value;
   if (!title || !date) { toast('Título e data são obrigatórios', 'error'); return; }
+
+  const recVal = document.getElementById('mtg-recurrence').value;
+  const recEndVal = document.getElementById('mtg-recurrence-end').value;
+  if (recVal !== 'none' && !recEndVal) {
+    toast('Data limite da repetição é obrigatória', 'error');
+    return;
+  }
  
   const m = {
     id:          meeting?.id || uid(),
@@ -945,13 +970,41 @@ function openMeetingDialog(meeting = null) {
     meetingLink: document.getElementById('mtg-link').value.trim(),
     groupId:     document.getElementById('mtg-group').value,
     desc:        document.getElementById('mtg-desc').value.trim(),
+    recurrence:  recVal,
+    recurrenceEnd: recVal === 'none' ? null : recEndVal,
     createdBy:   currentUser.uid,
     // true = evento do PET (visível só para isPET), false = evento externo (visível só para convidados)
-    petEvent:    isPET(),
+    petEvent:    !!isPET(),
     // Para eventos externos, lista de UIDs convidados (inclui o criador)
     invitees:    meeting?.invitees || [currentUser.uid],
   };
-  await saveMeeting(m);
+
+  if (!editing && m.recurrence !== 'none') {
+    // Generate occurrences
+    const occurrences = [];
+    let curDate = new Date(m.date + 'T00:00:00');
+    const endDate = new Date(m.recurrenceEnd + 'T00:00:00');
+
+    while (curDate <= endDate) {
+      occurrences.push(new Date(curDate));
+      if (m.recurrence === 'daily') curDate.setDate(curDate.getDate() + 1);
+      else if (m.recurrence === 'weekly') curDate.setDate(curDate.getDate() + 7);
+      else if (m.recurrence === 'biweekly') curDate.setDate(curDate.getDate() + 14);
+      else if (m.recurrence === 'monthly') curDate.setMonth(curDate.getMonth() + 1);
+      else break;
+    }
+
+    // Save all occurrences
+    const promises = occurrences.map(d => {
+      const pad = n => String(n).padStart(2, '0');
+      const dStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const occ = { ...m, id: uid(), date: dStr };
+      return saveMeeting(occ);
+    });
+    await Promise.all(promises);
+  } else {
+    await saveMeeting(m);
+  }
   overlay.classList.remove('open');
   toast(editing ? 'Evento atualizado' : 'Evento criado', 'success');
 });
