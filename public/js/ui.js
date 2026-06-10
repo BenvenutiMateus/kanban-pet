@@ -361,7 +361,7 @@ function renderBoard() {
     wrap.style.display = 'none';
     empty.style.display = 'none';
     meta.style.display = 'none';
-    search.style.display = 'none';
+    search.style.display = '';
     calWrap.style.display = 'none';
     if (mtWrap) mtWrap.style.display = 'block';
     renderMyTasks();
@@ -761,7 +761,13 @@ function renderMyTasks() {
     });
   });
 
-  myTasks.sort((a, b) => {
+  const q = get_searchQ().toLowerCase();
+  const filteredTasks = myTasks.filter(c => {
+    if (!q) return true;
+    return c.title.toLowerCase().includes(q) || (c.desc && c.desc.toLowerCase().includes(q));
+  });
+
+  filteredTasks.sort((a, b) => {
     if (!a.due && !b.due) return 0;
     if (!a.due) return 1;
     if (!b.due) return -1;
@@ -770,41 +776,71 @@ function renderMyTasks() {
 
   wrap.innerHTML = '<h2 style="margin-bottom: 20px; color: var(--text);">Minhas Tarefas</h2>';
 
-  if (myTasks.length === 0) {
+  if (filteredTasks.length === 0) {
     wrap.innerHTML += '<p style="color: var(--text2);">Nenhuma tarefa atribuída a você no momento.</p>';
     return;
   }
 
-  const grid = document.createElement('div');
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
-  grid.style.gap = '16px';
-
-  myTasks.forEach(card => {
-    const cardEl = buildCard(card, null, Date.now());
-
-    // Create a new wrapper to catch the click and open the modal safely
-    const wrapEl = document.createElement('div');
-    wrapEl.style.cursor = 'pointer';
-    wrapEl.appendChild(cardEl);
-
-    // Override pointer events on inner card to bubble clicks to wrapEl
-    // but keep doneBtn working
-    cardEl.style.pointerEvents = 'none';
-    const doneBtn = cardEl.querySelector('.card-done-btn');
-    if (doneBtn) doneBtn.style.pointerEvents = 'auto';
-
-    wrapEl.onclick = e => {
-      if (e.target.closest('.card-done-btn')) return;
-      setLocalNav(card._boardId, 'board');
-      renderAll();
-      setTimeout(() => openModal(card.id), 100);
-    };
-
-    grid.appendChild(wrapEl);
+  // Build a map of boardId -> groupName
+  const boardToGroup = {};
+  (STATE.meta.groups || []).forEach(g => {
+    (g.boardIds || []).forEach(bId => {
+      boardToGroup[bId] = g.name;
+    });
   });
 
-  wrap.appendChild(grid);
+  // Group the tasks
+  const groupedTasks = {};
+  filteredTasks.forEach(c => {
+    const gName = boardToGroup[c._boardId] || "Sem Grupo";
+    if (!groupedTasks[gName]) groupedTasks[gName] = [];
+    groupedTasks[gName].push(c);
+  });
+
+  // Sort groups alphabetically, "Sem Grupo" at the end
+  const groupNames = Object.keys(groupedTasks).sort((a, b) => {
+    if (a === "Sem Grupo") return 1;
+    if (b === "Sem Grupo") return -1;
+    return a.localeCompare(b);
+  });
+
+  groupNames.forEach(gName => {
+    const h3 = document.createElement('h3');
+    h3.style.color = 'var(--text)';
+    h3.style.marginTop = '10px';
+    h3.style.marginBottom = '12px';
+    h3.style.fontSize = '16px';
+    h3.textContent = gName;
+    wrap.appendChild(h3);
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+    grid.style.gap = '16px';
+    grid.style.marginBottom = '24px';
+
+    groupedTasks[gName].forEach(card => {
+      const cardEl = buildCard(card, null, Date.now());
+
+      const wrapEl = document.createElement('div');
+      wrapEl.style.cursor = 'pointer';
+      wrapEl.appendChild(cardEl);
+
+      cardEl.style.pointerEvents = 'none';
+      const doneBtn = cardEl.querySelector('.card-done-btn');
+      if (doneBtn) doneBtn.style.pointerEvents = 'auto';
+
+      wrapEl.onclick = e => {
+        if (e.target.closest('.card-done-btn')) return;
+        setLocalNav(card._boardId, 'board');
+        renderAll();
+        setTimeout(() => openModal(card.id), 100);
+      };
+
+      grid.appendChild(wrapEl);
+    });
+    wrap.appendChild(grid);
+  });
 }
 
 // ─── MEETING DIALOG ─────────────────────────────────────
