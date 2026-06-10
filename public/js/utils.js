@@ -5,7 +5,7 @@
 export const uid = () => '_' + Math.random().toString(36).substr(2,9);
 export const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 export const initials = n => n.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().substr(0,2);
-export const createUsername = n => n ? String(n).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") : "";
+export const createUsername = n => n ? String(n).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") : "";
 
 export function fmtDate(d) {
   if (!d) return '';
