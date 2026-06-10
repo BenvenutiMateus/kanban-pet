@@ -33,11 +33,11 @@
   </div>
 
   <!-- FORM DE LOGIN -->
-  <div id="login-form">
+  <form id="login-form">
     <h2>Entrar na plataforma</h2>
     <div class="field">
       <label>E-mail</label>
-      <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email">
+      <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="username">
     </div>
     <div class="field">
       <label>Senha</label>
@@ -45,16 +45,16 @@
     </div>
     <div class="login-err" id="login-err"></div>
     <div class="login-info" id="login-info" style="display:none"></div>
-    <button class="btn-primary" id="btn-login">Entrar</button>
-    <button class="btn-primary" id="btn-google-login" style="margin-top: 10px; background: #4285F4; border-color: #4285F4; color: white;">Entrar com Google</button>
-    <button class="btn-link" id="btn-show-register"
+    <button type="submit" class="btn-primary" id="btn-login">Entrar</button>
+    <button type="button" class="btn-primary" id="btn-google-login" style="margin-top: 10px; background: #4285F4; border-color: #4285F4; color: white;">Entrar com Google</button>
+    <button type="button" class="btn-link" id="btn-show-register"
             style="margin-top:10px;background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;width:100%;text-align:center">
       Não tem conta? Solicitar acesso
     </button>
-  </div>
+  </form>
 
   <!-- FORM DE CADASTRO -->
-  <div id="register-form" style="display:none">
+  <form id="register-form" style="display:none">
     <h2>Solicitar acesso</h2>
     <div class="field">
       <label>Nome completo</label>
@@ -62,19 +62,19 @@
     </div>
     <div class="field">
       <label>E-mail</label>
-      <input type="email" id="reg-email" placeholder="seu@email.com" autocomplete="email">
+      <input type="email" id="reg-email" placeholder="seu@email.com" autocomplete="username">
     </div>
     <div class="field">
       <label>Senha</label>
       <input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
     </div>
     <div class="login-err" id="reg-err"></div>
-    <button class="btn-primary" id="btn-register">Cadastrar</button>
-    <button class="btn-link" id="btn-show-login"
+    <button type="submit" class="btn-primary" id="btn-register">Cadastrar</button>
+    <button type="button" class="btn-link" id="btn-show-login"
             style="margin-top:10px;background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;width:100%;text-align:center">
       Já tem conta? Entrar
     </button>
-  </div>
+  </form>
 </div>
 </div>
 

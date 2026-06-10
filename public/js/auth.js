@@ -137,19 +137,22 @@ export async function doRegister() {
 
 export function initAuth() {
   // Login
-  document.getElementById('btn-login').onclick = doLogin;
+  document.getElementById('login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    doLogin();
+  });
   document.getElementById('btn-google-login').onclick = doGoogleLogin;
-  document.getElementById('login-pass').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
-  document.getElementById('login-email').onkeydown = e => { if (e.key === 'Enter') document.getElementById('login-pass').focus(); };
 
   // Cadastro
+  document.getElementById('register-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    doRegister();
+  });
   document.getElementById('btn-show-register').onclick = () => {
     showRegisterForm();
     document.getElementById('login-info').style.display = 'none';
   };
   document.getElementById('btn-show-login').onclick = showLoginForm;
-  document.getElementById('btn-register').onclick = doRegister;
-  document.getElementById('reg-pass').onkeydown = e => { if (e.key === 'Enter') doRegister(); };
 
   // Logout
   document.getElementById('btn-logout').onclick = () => signOut(auth);
