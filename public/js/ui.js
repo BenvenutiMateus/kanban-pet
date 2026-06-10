@@ -7,7 +7,7 @@ import { STATE, _currentView, _activeBoardId, currentUser,
   setCalMonth, setCalYear, setModalCardId,
   get_lastBoardHash, get_searchQ, get_calMonth, get_calYear,
   get_modalCardId, get_drag, get_pendingRender, setPendingRender } from './state.js';
-import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG } from './constants.js';
+import { TAGS, AV_COLORS, GRP_COLORS, BOARD_COLORS, COL_ACCENT_COLORS, FB_CONFIG, ROLES } from './constants.js';
 import { uid, esc, initials, createUsername, fmtDate, fmtTs, today, toast } from './utils.js';
 import { dialog } from './dialog.js';
 import { saveBoard, saveMeta, saveUser, saveMeeting, deleteMeeting, saveNotification, markNotificationRead, deleteNotification } from './firestore.js';
@@ -25,6 +25,11 @@ export function me() {
 export function isAdmin() {
   const u = me();
   return u && ['admin', 'tutor'].includes(u.role);
+}
+
+export function isPET() {
+  const u = me();
+  return u && u.role && ROLES[u.role]?.isPET;
 }
 
 export function activeBoard() {
@@ -635,6 +640,7 @@ function renderCalendar() {
   });
 
   const meetings = Object.values(STATE.meetings || {}).filter(m => {
+  if (m.groupId) return true; // Events linked to a group are visible to everyone
   if (m.petEvent) return isPET(); 
   return (m.invitees || []).includes(currentUser.uid); 
 });
@@ -685,9 +691,12 @@ function renderCalendar() {
         .filter(m => m.date === fullDateStr)
         .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
         .forEach(m => {
+          const gName = m.groupId && STATE.meta.groups ? STATE.meta.groups.find(g => g.id === m.groupId)?.name : null;
           html += `<div class="cal-meeting" data-meeting-id="${m.id}" title="${esc(m.title)}&#10;${m.time ? m.time + ' — ' : ''}${esc(m.location || '')}">
             🗓 <strong>${m.time || ''}</strong> ${esc(m.title)}
+            ${gName ? `<span class="cal-meeting-loc">👥 ${esc(gName)}</span>` : ''}
             ${m.location ? `<span class="cal-meeting-loc">📍${esc(m.location)}</span>` : ''}
+            ${m.meetingLink ? `<span class="cal-meeting-loc"><a href="${esc(m.meetingLink)}" target="_blank" onclick="event.stopPropagation()">🔗 Meet</a></span>` : ''}
           </div>`;
         });
 
@@ -857,6 +866,11 @@ function openMeetingDialog(meeting = null) {
       <input id="mtg-date"  type="date" value="${meeting?.date || ''}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
       <input id="mtg-time"  type="time" value="${meeting?.time || ''}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
       <input id="mtg-location" type="text" placeholder="Local (ex: Sala 3, Meet...)" value="${esc(meeting?.location || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <input id="mtg-link" type="url" placeholder="Link da Reunião (ex: https://meet.google.com/...)" value="${esc(meeting?.meetingLink || '')}" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+      <select id="mtg-group" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text)">
+        <option value="">Nenhum Grupo (Privado/Convidados)</option>
+        ${(STATE.meta.groups || []).map(g => `<option value="${g.id}" ${meeting?.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}
+      </select>
       <textarea id="mtg-desc" placeholder="Descrição (opcional)" style="padding:8px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--text);resize:vertical;min-height:60px">${esc(meeting?.desc || '')}</textarea>
     </div>
     <div class="dlg-actions" style="display:flex;gap:8px;justify-content:flex-end">
@@ -923,17 +937,19 @@ function openMeetingDialog(meeting = null) {
   if (!title || !date) { toast('Título e data são obrigatórios', 'error'); return; }
  
   const m = {
-    id:        meeting?.id || uid(),
+    id:          meeting?.id || uid(),
     title,
     date,
-    time:      document.getElementById('mtg-time').value,
-    location:  document.getElementById('mtg-location').value.trim(),
-    desc:      document.getElementById('mtg-desc').value.trim(),
-    createdBy: currentUser.uid,
+    time:        document.getElementById('mtg-time').value,
+    location:    document.getElementById('mtg-location').value.trim(),
+    meetingLink: document.getElementById('mtg-link').value.trim(),
+    groupId:     document.getElementById('mtg-group').value,
+    desc:        document.getElementById('mtg-desc').value.trim(),
+    createdBy:   currentUser.uid,
     // true = evento do PET (visível só para isPET), false = evento externo (visível só para convidados)
-    petEvent:  isPET(),
+    petEvent:    isPET(),
     // Para eventos externos, lista de UIDs convidados (inclui o criador)
-    invitees:  meeting?.invitees || [currentUser.uid],
+    invitees:    meeting?.invitees || [currentUser.uid],
   };
   await saveMeeting(m);
   overlay.classList.remove('open');
