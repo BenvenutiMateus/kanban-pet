@@ -208,6 +208,8 @@ function renderSidebar() {
 
   const calBtn = document.getElementById('btn-calendar');
   calBtn.style.background = (_currentView === 'calendar') ? 'rgba(138,21,56,.25)' : 'rgba(138,21,56,.12)';
+  const mtBtn = document.getElementById('btn-my-tasks');
+  if (mtBtn) mtBtn.style.background = (_currentView === 'my-tasks') ? 'rgba(138,21,56,.25)' : 'rgba(138,21,56,.12)';
 
   const nav = document.getElementById('sb-nav');
   nav.innerHTML = '';
@@ -218,7 +220,7 @@ function renderSidebar() {
   const isAdm = isAdmin();
 
   const accessibleGroupIds = new Set(groups.filter(g =>
-    isAdm || g.creatorId === currentUser.uid || (g.memberIds && g.memberIds.includes(currentUser.uid))
+    g.creatorId === currentUser.uid || (g.memberIds && g.memberIds.includes(currentUser.uid))
   ).map(g => g.id));
 
   const myBoards = allBoards.filter(b => {
@@ -231,7 +233,7 @@ function renderSidebar() {
 
   groups.forEach(g => {
     const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id)).map(id => STATE.boards[id]).filter(Boolean);
-    if (!isAdm && gBoards.length === 0 && g.creatorId !== currentUser.uid && !(g.memberIds && g.memberIds.includes(currentUser.uid))) return;
+    if (gBoards.length === 0 && g.creatorId !== currentUser.uid && !(g.memberIds && g.memberIds.includes(currentUser.uid))) return;
 
     const openKey = 'grp_open_' + g.id;
     const open = localStorage.getItem(openKey) !== 'false';
@@ -342,6 +344,7 @@ function renderBoard() {
   const meta = document.getElementById('board-meta');
   const search = document.getElementById('topbar-search');
   const calWrap = document.getElementById('calendar-wrap');
+  const mtWrap = document.getElementById('my-tasks-wrap');
 
   if (_currentView === 'calendar') {
     wrap.style.display = 'none';
@@ -349,11 +352,24 @@ function renderBoard() {
     meta.style.display = 'none';
     search.style.display = 'none';
     calWrap.style.display = 'flex';
+    if (mtWrap) mtWrap.style.display = 'none';
     renderCalendar();
     return;
   }
 
+  if (_currentView === 'my-tasks') {
+    wrap.style.display = 'none';
+    empty.style.display = 'none';
+    meta.style.display = 'none';
+    search.style.display = 'none';
+    calWrap.style.display = 'none';
+    if (mtWrap) mtWrap.style.display = 'block';
+    renderMyTasks();
+    return;
+  }
+
   calWrap.style.display = 'none';
+  if (mtWrap) mtWrap.style.display = 'none';
   const b = activeBoard();
   const isAdm = isAdmin();
   const hasAccess = b && (isAdm || (b.memberIds && b.memberIds.includes(currentUser.uid)));
@@ -723,6 +739,72 @@ function renderCalendar() {
       }
     };
   });
+}
+
+// ─── MY TASKS ────────────────────────────────────────────
+
+function renderMyTasks() {
+  const wrap = document.getElementById('my-tasks-wrap');
+  if (!wrap) return;
+
+  const myTasks = [];
+  Object.values(STATE.boards).forEach(b => {
+    if (!b.memberIds || !b.memberIds.includes(currentUser.uid)) return;
+    (b.columns || []).forEach(col => {
+      (col.cards || []).forEach(card => {
+        if ((card.assignees || []).includes(currentUser.uid)) {
+          // copy so we can attach boardId without affecting state directly
+          const c = { ...card, _boardId: b.id };
+          myTasks.push(c);
+        }
+      });
+    });
+  });
+
+  myTasks.sort((a, b) => {
+    if (!a.due && !b.due) return 0;
+    if (!a.due) return 1;
+    if (!b.due) return -1;
+    return a.due.localeCompare(b.due);
+  });
+
+  wrap.innerHTML = '<h2 style="margin-bottom: 20px; color: var(--text);">Minhas Tarefas</h2>';
+
+  if (myTasks.length === 0) {
+    wrap.innerHTML += '<p style="color: var(--text2);">Nenhuma tarefa atribuída a você no momento.</p>';
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+  grid.style.gap = '16px';
+
+  myTasks.forEach(card => {
+    const cardEl = buildCard(card, null, Date.now());
+
+    // Create a new wrapper to catch the click and open the modal safely
+    const wrapEl = document.createElement('div');
+    wrapEl.style.cursor = 'pointer';
+    wrapEl.appendChild(cardEl);
+
+    // Override pointer events on inner card to bubble clicks to wrapEl
+    // but keep doneBtn working
+    cardEl.style.pointerEvents = 'none';
+    const doneBtn = cardEl.querySelector('.card-done-btn');
+    if (doneBtn) doneBtn.style.pointerEvents = 'auto';
+
+    wrapEl.onclick = e => {
+      if (e.target.closest('.card-done-btn')) return;
+      setLocalNav(card._boardId, 'board');
+      renderAll();
+      setTimeout(() => openModal(card.id), 100);
+    };
+
+    grid.appendChild(wrapEl);
+  });
+
+  wrap.appendChild(grid);
 }
 
 // ─── MEETING DIALOG ─────────────────────────────────────
@@ -1353,6 +1435,11 @@ export function initUI() {
 
   document.getElementById('btn-calendar').onclick = () => {
     setLocalNav(null, 'calendar');
+    renderAll();
+  };
+
+  document.getElementById('btn-my-tasks').onclick = () => {
+    setLocalNav(null, 'my-tasks');
     renderAll();
   };
 
