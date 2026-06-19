@@ -982,10 +982,12 @@ function openMeetingDialog(meeting = null) {
   if (!editing && m.recurrence !== 'none') {
     // Generate occurrences
     const occurrences = [];
-    let curDate = new Date(m.date + 'T00:00:00');
-    const endDate = new Date(m.recurrenceEnd + 'T00:00:00');
+    let curDate = new Date(m.date + 'T12:00:00');
+    const endDate = new Date(m.recurrenceEnd + 'T12:00:00');
+    let safeCount = 0;
 
-    while (curDate <= endDate) {
+    while (curDate <= endDate && safeCount < 365) {
+      safeCount++;
       occurrences.push(new Date(curDate));
       if (m.recurrence === 'daily') curDate.setDate(curDate.getDate() + 1);
       else if (m.recurrence === 'weekly') curDate.setDate(curDate.getDate() + 7);
