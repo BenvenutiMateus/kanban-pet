@@ -34,7 +34,7 @@ export function initDialog() {
     if (!_dlgCb) return;
     const inp = document.getElementById('dlg-inp');
     const sel = document.getElementById('dlg-sel');
-    if (inp.style.display !== 'none')  _dlgCb(inp.value.trim());
+    if (inp.style.display !== 'none')  _dlgCb(inp.value ? inp.value.trim() : '');
     else if (sel.style.display !== 'none') _dlgCb(sel.value);
     else _dlgCb(true);
   };

@@ -1511,6 +1511,55 @@ export function initUI() {
     });
   };
 
+  document.getElementById('btn-change-group').onclick = () => {
+    const b = activeBoard();
+    if (!b) return;
+    const groups = STATE.meta.groups || [];
+    const isAdm = isAdmin();
+    const myBoardIds = new Set(Object.keys(STATE.boards));
+    const allowedGroups = groups.filter(g => {
+      if (isAdm) return true;
+      if (g.creatorId === currentUser.uid) return true;
+      if (g.memberIds && g.memberIds.includes(currentUser.uid)) return true;
+      const gBoards = (g.boardIds || []).filter(id => myBoardIds.has(id));
+      return gBoards.length > 0;
+    });
+
+    const opts = [{ value: '__none', label: 'Sem grupo' }, ...allowedGroups.map(g => ({ value: g.id, label: g.name }))];
+    const defaultVal = b.groupId || '__none';
+
+    dialog({ title: 'Mudar grupo', select: true, options: opts, defaultVal: defaultVal, okLabel: 'Salvar' }, async gid => {
+      if (!gid || gid === true || gid === defaultVal) return;
+
+      const oldGroupId = b.groupId;
+      b.groupId = gid === '__none' ? null : gid;
+      await saveBoard(b.id);
+
+      let metaChanged = false;
+      if (oldGroupId) {
+        const oldG = groups.find(x => x.id === oldGroupId);
+        if (oldG) {
+          oldG.boardIds = (oldG.boardIds || []).filter(id => id !== b.id);
+          metaChanged = true;
+        }
+      }
+
+      if (b.groupId) {
+        const newG = groups.find(x => x.id === b.groupId);
+        if (newG) {
+          newG.boardIds = [...(newG.boardIds || []), b.id];
+          metaChanged = true;
+        }
+      }
+
+      if (metaChanged) {
+        await saveMeta({ groups });
+      }
+
+      renderAll();
+    });
+  };
+
   document.getElementById('btn-del-board').onclick = () => {
     const b = activeBoard();
     if (!b) return;
