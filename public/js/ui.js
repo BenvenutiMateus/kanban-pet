@@ -207,6 +207,7 @@ function renderSidebar() {
   const av = document.getElementById('sb-avatar');
   av.style.cssText = `width:30px;height:30px;min-width:30px;border-radius:50%;background:${u.color}22;color:${u.color};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;`;
   av.textContent = initials(u.name);
+  av.title = u.name;
   document.getElementById('sb-user-name').textContent = u.name;
   document.getElementById('sb-user-role').textContent = u.role.charAt(0).toUpperCase() + u.role.slice(1);
   document.getElementById('btn-admin').style.display = isAdmin() ? '' : 'none';
