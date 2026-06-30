@@ -634,7 +634,7 @@ function renderCalendar() {
     (b.columns || []).forEach(col => {
       (col.cards || []).forEach(card => {
         if ((card.assignees || []).includes(currentUser.uid) && card.due)
-          myTasks.push({ ...card, boardName: b.name, colName: col.title, type: 'task' });
+          myTasks.push({ ...card, boardId: b.id, boardName: b.name, colName: col.title, type: 'task' });
       });
     });
   });
@@ -701,7 +701,7 @@ function renderCalendar() {
         });
 
       myTasks.filter(t => t.due === fullDateStr).forEach(t => {
-        html += `<div class="cal-task ${t.done ? 'done' : ''}" data-cal-card="${t.id}" title="${esc(t.title)} (${esc(t.boardName)})">
+        html += `<div class="cal-task ${t.done ? 'done' : ''}" data-cal-card="${t.id}" data-board-id="${t.boardId}" title="${esc(t.title)} (${esc(t.boardName)})">
           <span style="color:var(--accent)">•</span> ${esc(t.title)}
         </div>`;
       });
@@ -735,15 +735,11 @@ function renderCalendar() {
   wrap.querySelectorAll('[data-cal-card]').forEach(el => {
     el.onclick = () => {
       const cardId = el.dataset.calCard;
-      for (const b of Object.values(STATE.boards)) {
-        for (const col of (b.columns || [])) {
-          if (col.cards.find(c => c.id === cardId)) {
-            setLocalNav(b.id, 'board');
-            renderAll();
-            setTimeout(() => openModal(cardId), 100);
-            return;
-          }
-        }
+      const boardId = el.dataset.boardId;
+      if (boardId) {
+        setLocalNav(boardId, 'board');
+        renderAll();
+        setTimeout(() => openModal(cardId), 100);
       }
     };
   });
